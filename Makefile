@@ -2,9 +2,10 @@
 
 ## path settings
 
-IN_DIR=/nas/datashare/datasets/tusimple-benchmark
+# IN_DIR=/nas/datashare/datasets/tusimple-benchmark
+IN_DIR=/home/sang/datasets/tusimple-benchmark
 OUT_DIR=output
-
+META_DIR=$(OUT_DIR)/metadata
 ## variables
 
 
@@ -25,4 +26,14 @@ $(IN_DIR)/test_set.zip:
 # for example, upzip train_set.zip 
 
 
+# For TuSimple dataset,
+# Merge all the annotation and create train/val splits
 
+SPLITS=train val test
+
+metadata: $(META_DIR)/tusimple.json
+$(META_DIR)/tusimple.json:
+	python src/metadata.py --input_dir $(IN_DIR) --output_file $@
+
+train:
+	python src/train.py 
