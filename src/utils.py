@@ -126,11 +126,14 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, train_loader, epo
 
         bin_preds, ins_preds = model(images)
 
-        ce_loss = criterion_ce(bin_preds, bin_labels)
 
-        disc_loss = criterion_disc(ins_preds,
-                                    ins_labels,
-                                    [n_sticks] * len(images))
+        #import pdb; pdb.set_trace()
+        _, bin_labels_ce = bin_labels.max(1)
+        ce_loss = criterion_ce(bin_preds.permute(0,2,3,1).contiguous().view(-1,2),
+                               bin_labels_ce.view(-1))
+
+        disc_loss = criterion_disc(ins_preds, ins_labels,
+                                    [opt.max_lanes] * len(images))
 
 
         loss = ce_loss + disc_loss

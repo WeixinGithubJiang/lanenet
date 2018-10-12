@@ -39,6 +39,7 @@ class DataLoader(data.Dataset):
         self.thickness = opt.thickness
         self.height = opt.height
         self.width = opt.width
+        self.max_lanes = opt.max_lanes
 
         self.image_transform = get_image_transform(height=self.height, width=self.width)
 
@@ -74,7 +75,8 @@ class DataLoader(data.Dataset):
         # get the instance segmentation image and convert it to labels
         # that has size Max_lanes x Height x Width
         ins_labels = get_instance_labels(self.height, self.width, pts,
-                                         thickness=self.thickness)
+                                         thickness=self.thickness,
+                                         max_lanes=self.max_lanes)
 
         # transform the image, and convert to Tensor
         image = self.image_transform(image)

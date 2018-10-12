@@ -147,6 +147,12 @@ if __name__ == '__main__':
         help='thickness of the polylines')
 
     parser.add_argument(
+        '--max_lanes',
+        type=int,
+        default=5,
+        help='max number of lanes')
+
+    parser.add_argument(
         '--learning_rate',
         type=float,
         default=1e-4,
