@@ -6,6 +6,9 @@
 IN_DIR=/home/sang/datasets/tusimple-benchmark
 OUT_DIR=output
 META_DIR=$(OUT_DIR)/metadata
+MODEL_DIR=$(OUT_DIR)/model
+BIN_DIR=$(OUT_DIR)/bin_images # contains binary segmentation images
+INS_DIR=$(OUT_DIR)/ins_images # contains instance segmentation images
 ## variables
 
 
@@ -35,5 +38,17 @@ metadata: $(META_DIR)/tusimple.json
 $(META_DIR)/tusimple.json:
 	python src/metadata.py --input_dir $(IN_DIR) --output_file $@
 
-train:
-	python src/train.py 
+# Generate binary segmentation image & instance segmentation images from
+# the annotation data
+generate_label_images:
+	python src/gen_seg_images.py $(META_DIR)/tusimple.json $(IN_DIR) \
+		--bin_dir $(BIN_DIR) \
+		--ins_dir $(INS_DIR) \
+		--splits train val \
+		--thickness 5
+
+train: $(MODEL_DIR)/lanenet.pth 
+$(MODEL_DIR)/lanenet.pth: $(META_DIR)/tusimple.json 
+	python src/train.py $^ $@ \
+		--image_dir $(IN_DIR) \
+		--cnn_type unet 
