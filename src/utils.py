@@ -79,28 +79,42 @@ def get_instance_labels(height, width, pts, thickness=5, max_lanes=5):
             pts
 
     Output:
-            instance segmentation image
+            max Lanes x H x W, number of actual lanes
     """
     if len(pts) > max_lanes:
         logger.warning('More than 5 lanes: %s', len(pts))
         pts = pts[:max_lanes]
 
-    ins_labels = np.zeros(shape=[max_lanes, height, width], dtype=np.uint8)
+    ins_labels = np.zeros(shape=[0, height, width], dtype=np.uint8)
 
-    for i, lane in enumerate(pts):
+    n_lanes = 0
+    for lane in pts:
         ins_img = np.zeros(shape=[height, width], dtype=np.uint8)
         cv2.polylines(ins_img, np.int32([lane]), isClosed=False, color=1, thickness=thickness)
 
-        # if there is overlapping among lanes, only the latest lane is labeled
-        ins_labels[:i, ins_img != 0] = 0
+        # there are some cases where the line could not be draw, such as one
+        # point, we need to remove these cases
+        # also, if there is overlapping among lanes, only the latest lane is labeled
+        if ins_img.sum() != 0:
+            ins_labels[:, ins_img != 0] = 0
+            ins_labels = np.concatenate([ins_labels, ins_img[np.newaxis]])
+            n_lanes += 1
 
-        #ins_labels = np.concatenate([ins_labels, ins_img[np.newaxis]])
-        ins_labels[i, :] = ins_img
+    if n_lanes < max_lanes:
+        n_pad_lanes = max_lanes - n_lanes
+        pad_labels = np.zeros(shape=[n_pad_lanes, height, width], dtype=np.uint8)
+        ins_labels = np.concatenate([ins_labels, pad_labels])
 
-    return ins_labels
+    return ins_labels, n_lanes
 
 
-def train(opt, model, criterion_disc, criterion_ce, optimizer, train_loader, epoch):
+def line_accuracy(pred, gt, thresh):
+    pred = np.array([p if p >= 0 else -100 for p in pred])
+    gt = np.array([g if g >= 0 else -100 for g in gt])
+    return np.sum(np.where(np.abs(pred - gt) < thresh, 1., 0.)) / len(gt)
+
+
+def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
     # average meters to record the training statistics
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -109,15 +123,15 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, train_loader, epo
     model.train()
 
     end = time.time()
-    for i, train_data in enumerate(train_loader):
+    for i, data in enumerate(loader):
         # measure data loading time
         data_time.update(time.time() - end)
 
-        images, bin_labels, ins_labels = train_data
+        images, bin_labels, ins_labels, n_lanes = data
 
         images = Variable(images, volatile=False)
-        bin_labels = Variable(images, volatile=False)
-        ins_labels = Variable(images, volatile=False)
+        bin_labels = Variable(bin_labels, volatile=False)
+        ins_labels = Variable(ins_labels, volatile=False)
 
         if torch.cuda.is_available():
             images = images.cuda()
@@ -126,16 +140,11 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, train_loader, epo
 
         bin_preds, ins_preds = model(images)
 
-
-        #import pdb; pdb.set_trace()
         _, bin_labels_ce = bin_labels.max(1)
         ce_loss = criterion_ce(bin_preds.permute(0,2,3,1).contiguous().view(-1,2),
                                bin_labels_ce.view(-1))
 
-        disc_loss = criterion_disc(ins_preds, ins_labels,
-                                    [opt.max_lanes] * len(images))
-
-
+        disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
         loss = ce_loss + disc_loss
         optimizer.zero_grad()
         loss.backward()
@@ -151,42 +160,53 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, train_loader, epo
                 'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                 'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                 .format(
-                    epoch, i, len(train_loader), loss.data[0],
+                    epoch, i, len(loader), loss.data[0],
                     batch_time=batch_time,
                     data_time=data_time))
 
         end = time.time()
 
 
-def test(opt, model, criterion, val_loader):
+def test(opt, model, criterion_disc, criterion_ce, loader):
     val_loss = AverageMeter()
     val_score = AverageScore()
-
     model.eval()
-    for i, val_data in enumerate(val_loader):
+
+    for i, data in enumerate(loader):
         # Update the model
-        images = Variable(val_data[0], volatile=True)
-        labels = Variable(val_data[1], volatile=True)
+        images, bin_labels, ins_labels, n_lanes = data
+
+        images = Variable(images, volatile=False)
+        bin_labels = Variable(bin_labels, volatile=False)
+        ins_labels = Variable(ins_labels, volatile=False)
 
         if torch.cuda.is_available():
             images = images.cuda()
-            labels = labels.cuda()
+            bin_labels = bin_labels.cuda()
+            ins_labels = ins_labels.cuda()
 
-        preds = model(images)
-        loss = criterion(preds, labels)
+        bin_preds, ins_preds = model(images)
+
+        _, bin_labels_ce = bin_labels.max(1)
+        ce_loss = criterion_ce(bin_preds.permute(0,2,3,1).contiguous().view(-1,2),
+                               bin_labels_ce.view(-1))
+
+        disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
+        loss = ce_loss + disc_loss
 
         val_loss.update(loss.data[0])
+
         # convert to probabiblity output to cal precision/recall
-        preds = F.sigmoid(preds)
-        val_score.update(preds.data.cpu().numpy(), val_data[1].numpy())
+        # preds = F.sigmoid(preds)
+        #val_score.update(preds.data.cpu().numpy(), val_data[1].numpy())
 
         if i % opt.log_step == 0:
             logger.info(
                 'Epoch [{0}][{1}/{2}]\t'
                 'Loss {3:0.7f}\t'.format(
-                    0, i, len(val_loader), loss.data[0]))
+                    0, i, len(loader), loss.data[0]))
 
-    return val_loss, val_score
+    return val_loss #, val_score
 
 
 def adjust_learning_rate(opt, optimizer, epoch):

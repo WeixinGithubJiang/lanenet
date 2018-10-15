@@ -60,9 +60,9 @@ def main(opt):
         # validate at every val_step epoch
         if epoch % opt.val_step == 0:
             logger.info("Start evaluating...")
-            val_loss, val_score = test(opt, model, criterion, val_loader)
+            val_loss = test(opt, model, criterion_disc, criterion_ce, val_loader)
             logger.info('Val loss: \n%s', val_loss)
-            logger.info('Val score: \n%s', val_score)
+            #logger.info('Val score: \n%s', val_score)
 
             loss = val_loss.avg
             if loss < best_loss:

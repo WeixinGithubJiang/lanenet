@@ -42,6 +42,8 @@ class DiscriminativeLoss(_Loss):
 
         loss = self.alpha * l_var + self.beta * l_dist + self.gamma * l_reg
 
+        if torch.isnan(loss):
+            import pdb; pdb.set_trace()
         return loss
 
     def _cluster_means(self, input, target, n_clusters):
@@ -77,7 +79,7 @@ class DiscriminativeLoss(_Loss):
 
         # bs, n_features, max_n_clusters
         means = torch.stack(means)
-
+        #import pdb; pdb.set_trace()
         return means
 
     def _variance_term(self, input, target, c_means, n_clusters):

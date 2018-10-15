@@ -62,6 +62,10 @@ class DataLoader(data.Dataset):
         y_samples = self.info[image_id]['h_samples']
         pts = [[(x, y) for (x, y) in zip(lane, y_samples) if x >= 0] for lane in x_lanes]
 
+        # remove empty lines (not sure the role of these lines, but it causes
+        # bugs)
+        pts = [l for l in pts if len(l) > 0]
+
         x_rate = 1.0*self.height/image.size[0]
         y_rate = 1.0*self.width/image.size[1]
 
@@ -74,7 +78,7 @@ class DataLoader(data.Dataset):
 
         # get the instance segmentation image and convert it to labels
         # that has size Max_lanes x Height x Width
-        ins_labels = get_instance_labels(self.height, self.width, pts,
+        ins_labels, n_lanes = get_instance_labels(self.height, self.width, pts,
                                          thickness=self.thickness,
                                          max_lanes=self.max_lanes)
 
@@ -83,17 +87,27 @@ class DataLoader(data.Dataset):
         bin_labels = torch.Tensor(bin_labels)
         ins_labels = torch.Tensor(ins_labels)
 
-        return image, bin_labels, ins_labels
+        for i in range(n_lanes):
+            if ins_labels[i].sum() == 0:
+                import pdb; pdb.set_trace()
+                print('test')
+        return image, bin_labels, ins_labels, n_lanes
 
     def __len__(self):
         return len(self.image_ids)
 
 def collate_fn(data):
-    images, bin_labels, ins_labels = zip(*data)
+    """build a batch of data
+
+    Note:
+        probably the default collate_fn will do the same thing
+    """
+    images, bin_labels, ins_labels, n_lanes = zip(*data)
     images = torch.stack(images, 0)
     bin_labels = torch.stack(bin_labels, 0)
     ins_labels = torch.stack(ins_labels, 0)
-    return images, bin_labels, ins_labels
+    n_lanes = list(n_lanes)
+    return images, bin_labels, ins_labels, n_lanes
 
 def get_data_loader(opt, split='train'):
     """Returns torch.utils.data.DataLoader for custom dataset."""

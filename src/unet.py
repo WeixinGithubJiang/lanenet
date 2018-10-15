@@ -101,7 +101,9 @@ class UNet(nn.Module):
         self.up3 = up(256, 64)
         self.up4 = up(128, 64)
         self.sem_out = outconv(64, 2)
-        self.ins_out = outconv(64, 16)
+
+        # embedding dimension N was set to 4 in the paper
+        self.ins_out = outconv(64, 4)
 
     def forward(self, x):
         x1 = self.inc(x)
