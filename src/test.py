@@ -1,63 +1,93 @@
 import argparse
-import torch
-import torch.nn as nn
 import numpy as np
 import os
 import sys
 import time
 import math
 import json
-
 from datetime import datetime
-from model import DepNet
+import matplotlib.pyplot as plt
+import cv2
+import torch
+import torch.nn as nn
+from torch.autograd import Variable
+import torch.nn.functional as F
+from model import LaneNet
 from dataloader import get_data_loader
-from utils import test
+from utils import PostProcessor, Cluster, get_lane_area, get_lane_mask
 
 import logging
 logger = logging.getLogger(__name__)
+
+def test(model, loader, postprocessor, cluster):
+    model.eval()
+
+    for data in loader:
+        # Update the model
+        images, org_images = data
+
+        images = Variable(images, volatile=False)
+
+        if torch.cuda.is_available():
+            images = images.cuda()
+
+        bin_preds, ins_preds = model(images)
+
+        # convert to probabiblity output
+        bin_preds = F.softmax(bin_preds, dim=1)
+        # take the index of the max along the dim=1 dimension
+        bin_preds = bin_preds.max(1)[1]
+
+        bs = images.shape[0]
+        for i in range(bs):
+            bin_img = bin_preds[i].data.cpu().numpy()
+            ins_img = ins_preds[i].data.cpu().numpy()
+
+            bin_img = postprocessor.process(bin_img)
+
+            lane_embedding_feats, lane_coordinate = get_lane_area(bin_img, ins_img)
+
+            num_clusters, labels, cluster_centers = cluster.cluster(lane_embedding_feats, bandwidth=1.5)
+
+
+            mask_img = get_lane_mask(num_clusters, labels, bin_img,
+                                        lane_coordinate)
+
+            plt.ion()
+            plt.figure('mask_image')
+            mask_img = mask_img[:, :, (2, 1, 0)]
+            plt.imshow(mask_img)
+            plt.figure('src_image')
+            src_img = org_images[i].data.cpu().numpy()
+            #overlay_img = 0.5*mask_img + 0.5*src_img
+            overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
+
+            plt.imshow(overlay_img)
+            plt.pause(3.0)
+            plt.show()
+
 
 
 def main(opt):
     logger.info('Loading model: %s', opt.model_file)
 
-    test_opt = {
-        'label_file': opt.test_label,
-        'imageinfo_file': opt.test_imageinfo,
-        'image_dir': opt.test_image_dir,
-        'batch_size': opt.batch_size,
-        'num_workers': opt.num_workers,
-        'train': False
-    }
-
     checkpoint = torch.load(opt.model_file)
 
-    test_loader = get_data_loader(test_opt)
-    num_labels = test_loader.dataset.get_num_labels()
+    checkpoint_opt = checkpoint['opt']
+    model = LaneNet(cnn_type=checkpoint_opt.cnn_type)
+    test_loader = get_data_loader(checkpoint_opt, split='test')
 
     logger.info('Building model...')
-    checkpoint_opt = checkpoint['opt']
-    model = DepNet(
-        num_labels,
-        finetune=checkpoint_opt.finetune,
-        cnn_type=checkpoint_opt.cnn_type,
-        pretrained=False)
-
-    criterion = nn.MultiLabelSoftMarginLoss()
     model.load_state_dict(checkpoint['model'])
 
     if torch.cuda.is_available():
         model.cuda()
-        criterion.cuda()
+
+    postprocessor = PostProcessor()
+    cluster = Cluster()
 
     logger.info('Start testing...')
-    test_loss, test_score = test(checkpoint_opt, model, criterion, test_loader)
-    logger.info('Test loss: \n%s', test_loss)
-    logger.info('Test score: \n%s', test_score)
-
-    out = {'map': test_score.map()}
-    logger.info('Writing output to %s', opt.output_file)
-    with open(opt.output_file, 'w') as f:
-        json.dump(out, f)
+    test(model, test_loader, postprocessor, cluster)
 
 
 if __name__ == '__main__':
@@ -65,26 +95,21 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        'test_label',
+        'meta_file',
         type=str,
-        help='path to the h5 file containing the testing labels info')
+        help='path to the metadata file containing the testing labels info')
     parser.add_argument(
-        'test_imageinfo',
+        'model_file',
         type=str,
-        help='imageinfo contains image path')
-    parser.add_argument('model_file', type=str, help='path to the model file')
+        help='path to the model file')
     parser.add_argument(
-        'output_file',
-        type=str,
-        help='path to the output file')
-    parser.add_argument(
-        '--test_image_dir',
+        '--image_dir',
         type=str,
         help='path to the image dir')
     parser.add_argument(
         '--batch_size',
         type=int,
-        default=128,
+        default=2,
         help='batch size')
     parser.add_argument(
         '--num_workers',
@@ -121,4 +146,4 @@ if __name__ == '__main__':
         start = datetime.now()
         main(opt)
         logger.info('Time: %s', datetime.now() - start)
-        
+

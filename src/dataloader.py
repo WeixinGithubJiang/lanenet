@@ -5,9 +5,9 @@ import torchvision.transforms as transforms
 import torch.utils.data as data
 import numpy as np
 import json
-from PIL import Image
+import cv2
 from utils import get_binary_labels, get_instance_labels
-
+import matplotlib.pyplot as plt
 import logging
 from datetime import datetime
 logger = logging.getLogger(__name__)
@@ -18,8 +18,7 @@ def get_image_transform(height=256, width=512):
     normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                       std=[0.229, 0.224, 0.225])
 
-    t = [transforms.Resize((height, width)),
-         transforms.ToTensor(),
+    t = [transforms.ToTensor(),
          normalizer]
 
     transform = transforms.Compose(t)
@@ -40,6 +39,7 @@ class DataLoader(data.Dataset):
         self.height = opt.height
         self.width = opt.width
         self.max_lanes = opt.max_lanes
+        self.split = split
 
         self.image_transform = get_image_transform(height=self.height, width=self.width)
 
@@ -52,11 +52,16 @@ class DataLoader(data.Dataset):
 
     def __getitem__(self, index):
 
-        #import pdb; pdb.set_trace()
         image_id = self.image_ids[index]
         file_name = self.info[image_id]['raw_file']
         file_path = os.path.join(self.image_dir, file_name)
-        image = Image.open(file_path).convert('RGB')
+        #image = Image.open(file_path).convert('RGB')
+        image = cv2.imread(file_path) # in BGR order
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        width_org = image.shape[1]
+        height_org = image.shape[0]
+
+        image = cv2.resize(image, (self.width, self.height))
 
         x_lanes = self.info[image_id]['lanes']
         y_samples = self.info[image_id]['h_samples']
@@ -66,8 +71,8 @@ class DataLoader(data.Dataset):
         # bugs)
         pts = [l for l in pts if len(l) > 0]
 
-        x_rate = 1.0*self.height/image.size[0]
-        y_rate = 1.0*self.width/image.size[1]
+        x_rate = 1.0*self.width/width_org
+        y_rate = 1.0*self.height/height_org
 
         pts = [[(int(round(x*x_rate)), int(round(y*y_rate))) for (x, y) in lane] for lane in pts]
 
@@ -81,17 +86,15 @@ class DataLoader(data.Dataset):
         ins_labels, n_lanes = get_instance_labels(self.height, self.width, pts,
                                          thickness=self.thickness,
                                          max_lanes=self.max_lanes)
-
         # transform the image, and convert to Tensor
-        image = self.image_transform(image)
+        image_t = self.image_transform(image)
         bin_labels = torch.Tensor(bin_labels)
         ins_labels = torch.Tensor(ins_labels)
 
-        for i in range(n_lanes):
-            if ins_labels[i].sum() == 0:
-                import pdb; pdb.set_trace()
-                print('test')
-        return image, bin_labels, ins_labels, n_lanes
+        if self.split == 'test':
+            return image_t, image
+        else:
+            return image_t, bin_labels, ins_labels, n_lanes
 
     def __len__(self):
         return len(self.image_ids)
@@ -118,7 +121,7 @@ def get_data_loader(opt, split='train'):
                                               pin_memory=False,
                                               num_workers=opt.num_workers,
                                               batch_size=opt.batch_size,
-                                              collate_fn=collate_fn,
+                                              #collate_fn=collate_fn,
                                               shuffle=split=='train')
 
     return data_loader

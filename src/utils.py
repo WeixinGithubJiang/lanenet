@@ -6,9 +6,11 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import time
 import cv2
+from sklearn.cluster import MeanShift
 
 import logging
 logger = logging.getLogger(__name__)
+
 
 def get_binary_image(img, pts, thickness=5):
     """ Get the binary image
@@ -61,7 +63,7 @@ def get_binary_labels(height, width, pts, thickness=5):
 
     """
     bin_img = np.zeros(shape=[height, width], dtype=np.uint8)
-    for i, lane in enumerate(pts):
+    for lane in pts:
         cv2.polylines(bin_img, np.int32([lane]), isClosed=False, color=255, thickness=thickness)
 
     bin_labels = np.zeros_like(bin_img, dtype=bool)
@@ -106,12 +108,6 @@ def get_instance_labels(height, width, pts, thickness=5, max_lanes=5):
         ins_labels = np.concatenate([ins_labels, pad_labels])
 
     return ins_labels, n_lanes
-
-
-def line_accuracy(pred, gt, thresh):
-    pred = np.array([p if p >= 0 else -100 for p in pred])
-    gt = np.array([g if g >= 0 else -100 for g in gt])
-    return np.sum(np.where(np.abs(pred - gt) < thresh, 1., 0.)) / len(gt)
 
 
 def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
@@ -196,10 +192,6 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
 
         val_loss.update(loss.data[0])
 
-        # convert to probabiblity output to cal precision/recall
-        # preds = F.sigmoid(preds)
-        #val_score.update(preds.data.cpu().numpy(), val_data[1].numpy())
-
         if i % opt.log_step == 0:
             logger.info(
                 'Epoch [{0}][{1}/{2}]\t'
@@ -225,93 +217,6 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
-
-
-def average_precision(pred, label):
-    """calculate average precision
-    for each relevant label, average precision computes the proportion
-    of relevant labels that are ranked before it, and finally averages
-    over all relevant labels [1]
-
-    References:
-    ----------
-    .. [1] Sorower, Mohammad S. "A literature survey on algorithms for
-    multi-label learning." Oregon State University, Corvallis (2010).
-
-    Notes:
-    -----
-    .. Check with the average_precision_score method in the sklearn.metrics package
-    average_precision_score(pred, label, average='samples')
-
-    """
-    ap = 0
-    # sort the prediction scores in the descending order
-    sorted_pred_idx = np.argsort(pred)[::-1]
-    ranks = np.empty(len(pred), dtype=int)
-    ranks[sorted_pred_idx] = np.arange(len(pred)) + 1
-
-    # only care of those ranks of relevant labels
-    ranks = ranks[label > 0]
-
-    for ii, rank in enumerate(sorted(ranks)):
-        num_relevant_labels = ii + 1  # including the current relevant label
-        ap = ap + float(num_relevant_labels) / rank
-
-    return 0 if len(ranks) == 0 else ap / len(ranks)
-
-
-class AverageScore(object):
-    """Compute precision/recall/f-score and mAP"""
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.threshold_values = list(np.arange(0.1, 1, 0.1))
-        self.num_correct = [0] * len(self.threshold_values)
-        self.num_pred = [0] * len(self.threshold_values)
-        self.num_gold = 0
-        self.num_samples = 0
-        self.sum_ap = 0
-
-    def update(self, preds, labels):
-        batch_size = preds.shape[0]
-
-        self.num_samples += batch_size
-        ap = 0
-        for i in range(batch_size):
-            pred = preds[i]
-            label = labels[i]
-
-            correct_pred = pred[label > 0]
-            self.num_gold = self.num_gold + len(np.nonzero(label)[0])
-
-            for j, t in enumerate(self.threshold_values):
-                self.num_pred[j] = self.num_pred[j] + len(pred[pred > t])
-                self.num_correct[j] = self.num_correct[
-                    j] + len(correct_pred[correct_pred > t])
-
-            ap += average_precision(pred, label)
-
-        self.sum_ap += ap
-
-    def map(self):
-        return 0 if self.num_samples == 0 else self.sum_ap / self.num_samples
-
-    def __str__(self):
-        """String representation for logging
-        """
-        out = ''
-        for i, t in enumerate(self.threshold_values):
-            p = 0 if self.num_pred[i] == 0 else float(
-                self.num_correct[i]) / self.num_pred[i]
-            r = 0 if self.num_gold == 0 else float(
-                self.num_correct[i]) / self.num_gold
-            f = 0 if p + r == 0 else 2 * p * r / (p + r)
-            out += '===> Precision = %.4f, Recall = %.4f, F-score = %.4f (@ threshold = %.1f)\n' % (
-                p, r, f, t)
-        out += '===> Mean AP = %.4f' % (self.sum_ap / self.num_samples)
-        return out
 
 
 class AverageMeter(object):
@@ -340,4 +245,122 @@ class AverageMeter(object):
             return str(self.val)
         # for stats
         return '%.4f (%.4f)' % (self.val, self.avg)
+
+
+class PostProcessor(object):
+
+    def __init__(self):
+        pass
+
+    def process(self, image, kernel_size=5, minarea_threshold=200):
+        """
+
+        :param image:
+        :param kernel_size
+        :param minarea_threshold
+        :return:
+        """
+        if image.dtype is not np.uint8:
+            image = np.array(image, np.uint8)
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # fill the pixel gap using Closing operator (dilation followed by
+        # erosion)
+        kernel = cv2.getStructuringElement(shape=cv2.MORPH_RECT, ksize=(kernel_size, kernel_size))
+        image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
+
+        ccs = cv2.connectedComponentsWithStats(image, connectivity=8, ltype=cv2.CV_32S)
+        labels = ccs[1]
+        stats = ccs[2]
+
+        for index, stat in enumerate(stats):
+            if stat[4] <= minarea_threshold:
+                idx = np.where(labels == index)
+                image[idx] = 0
+
+        return image
+
+
+class Cluster(object):
+
+    def __init__(self):
+        pass
+
+    def cluster(self, prediction, bandwidth=1.5):
+        """
+        :param prediction:
+        :param bandwidth:
+        :return:
+        """
+        ms = MeanShift(bandwidth, bin_seeding=True)
+        tic = time.time()
+        try:
+            ms.fit(prediction)
+        except ValueError as err:
+            log.error(err)
+            return 0, [], []
+        # log.info('Mean Shift耗时: {:.5f}s'.format(time.time() - tic))
+        labels = ms.labels_
+        cluster_centers = ms.cluster_centers_
+
+        num_clusters = cluster_centers.shape[0]
+
+        return num_clusters, labels, cluster_centers
+
+
+def get_lane_area(binary_seg_ret, instance_seg_ret):
+    """
+    :param binary_seg_ret:
+    :param instance_seg_ret:
+    :return:
+    """
+    idx = np.where(binary_seg_ret == 1)
+
+    lane_embedding_feats = []
+    lane_coordinate = []
+    for i in range(len(idx[0])):
+        lane_embedding_feats.append(instance_seg_ret[:, idx[0][i], idx[1][i]])
+        lane_coordinate.append([idx[0][i], idx[1][i]])
+
+    return np.array(lane_embedding_feats, np.float32), np.array(lane_coordinate, np.int64)
+
+
+def get_lane_mask(num_clusters, labels, binary_seg_ret, lane_coordinate):
+    """
+    :param binary_seg_ret:
+    :param instance_seg_ret:
+    :return:
+    """
+
+    color_map = [(255, 0, 0),
+                (0, 255, 0),
+                (0, 0, 255),
+                (125, 125, 0),
+                (0, 125, 125),
+                (125, 0, 125),
+                (50, 100, 50),
+                (100, 50, 100)]
+
+    ## continue working on this
+    if num_clusters > 8:
+        cluster_sample_nums = []
+        for i in range(num_clusters):
+            cluster_sample_nums.append(len(np.where(labels == i)[0]))
+        sort_idx = np.argsort(-np.array(cluster_sample_nums, np.int64))
+        cluster_index = np.array(range(num_clusters))[sort_idx[0:8]]
+    else:
+        cluster_index = range(num_clusters)
+
+    mask_image = np.zeros(shape=[binary_seg_ret.shape[0], binary_seg_ret.shape[1], 3], dtype=np.uint8)
+
+    for index, i in enumerate(cluster_index):
+        idx = np.where(labels == i)
+        coord = lane_coordinate[idx]
+        coord = np.flip(coord, axis=1)
+        color = color_map[index]
+        coord = np.array([coord])
+        cv2.polylines(img=mask_image, pts=coord, isClosed=False, color=color, thickness=2)
+
+    return mask_image
 
