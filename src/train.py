@@ -73,7 +73,6 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
 
 def test(opt, model, criterion_disc, criterion_ce, loader):
     val_loss = AverageMeter()
-    val_score = AverageScore()
     model.eval()
 
     for i, data in enumerate(loader):
@@ -106,7 +105,7 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
                 'Loss {3:0.7f}\t'.format(
                     0, i, len(loader), loss.data[0]))
 
-    return val_loss #, val_score
+    return val_loss
 
 
 def main(opt):
