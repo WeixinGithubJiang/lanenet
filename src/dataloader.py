@@ -32,14 +32,14 @@ class DataLoader(data.Dataset):
     and an instance semegtation map
     """
 
-    def __init__(self, opt, split='train'):
+    def __init__(self, opt, split='train', return_raw_image=False):
 
         self.image_dir = opt.image_dir
         self.thickness = opt.thickness
         self.height = opt.height
         self.width = opt.width
         self.max_lanes = opt.max_lanes
-        self.split = split
+        self.return_raw_image = return_raw_image
 
         self.image_transform = get_image_transform(height=self.height, width=self.width)
 
@@ -57,7 +57,6 @@ class DataLoader(data.Dataset):
         file_path = os.path.join(self.image_dir, file_name)
         #image = Image.open(file_path).convert('RGB')
         image = cv2.imread(file_path) # in BGR order
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         width_org = image.shape[1]
         height_org = image.shape[0]
 
@@ -91,8 +90,12 @@ class DataLoader(data.Dataset):
         bin_labels = torch.Tensor(bin_labels)
         ins_labels = torch.Tensor(ins_labels)
 
-        if self.split == 'test':
-            return image_t, image
+        if self.return_raw_image:
+            # original image is converted to RGB to be displayed
+            # not a good practice here, maybe it is better to write the
+            # unnormalization transform
+            image_raw = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            return image_t, bin_labels, ins_labels, n_lanes, image_raw
         else:
             return image_t, bin_labels, ins_labels, n_lanes
 
@@ -105,23 +108,33 @@ def collate_fn(data):
     Note:
         probably the default collate_fn will do the same thing
     """
-    images, bin_labels, ins_labels, n_lanes = zip(*data)
+    if len(data[0]) == 4:
+        images, bin_labels, ins_labels, n_lanes = zip(*data)
+    elif len(data[0]) == 5:
+        images, bin_labels, ins_labels, n_lanes, raw_images = zip(*data)
+
     images = torch.stack(images, 0)
     bin_labels = torch.stack(bin_labels, 0)
     ins_labels = torch.stack(ins_labels, 0)
     n_lanes = list(n_lanes)
-    return images, bin_labels, ins_labels, n_lanes
 
-def get_data_loader(opt, split='train'):
+    if len(data[0]) == 4:
+        return images, bin_labels, ins_labels, n_lanes
+    else:
+        raw_images = np.stack(raw_images, 0)
+        return images, bin_labels, ins_labels, n_lanes, raw_images
+
+
+def get_data_loader(opt, split='train', return_raw_image=False):
     """Returns torch.utils.data.DataLoader for custom dataset."""
 
-    dataset = DataLoader(opt, split=split)
+    dataset = DataLoader(opt, split=split, return_raw_image=return_raw_image)
 
     data_loader = torch.utils.data.DataLoader(dataset=dataset,
-                                              pin_memory=False,
+                                              pin_memory=True,
                                               num_workers=opt.num_workers,
                                               batch_size=opt.batch_size,
-                                              #collate_fn=collate_fn,
+                                              collate_fn=collate_fn,
                                               shuffle=split=='train')
 
     return data_loader

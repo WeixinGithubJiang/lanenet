@@ -24,7 +24,7 @@ def test(model, loader, postprocessor, cluster):
 
     for data in loader:
         # Update the model
-        images, org_images = data
+        images, _, _, _, org_images = data
 
         images = Variable(images, volatile=False)
 
@@ -58,8 +58,7 @@ def test(model, loader, postprocessor, cluster):
             mask_img = mask_img[:, :, (2, 1, 0)]
             plt.imshow(mask_img)
             plt.figure('src_image')
-            src_img = org_images[i].data.cpu().numpy()
-            #overlay_img = 0.5*mask_img + 0.5*src_img
+            src_img = org_images[i]
             overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
 
             plt.imshow(overlay_img)
@@ -75,7 +74,7 @@ def main(opt):
 
     checkpoint_opt = checkpoint['opt']
     model = LaneNet(cnn_type=checkpoint_opt.cnn_type)
-    test_loader = get_data_loader(checkpoint_opt, split='test')
+    test_loader = get_data_loader(checkpoint_opt, split='test', return_raw_image=True)
 
     logger.info('Building model...')
     model.load_state_dict(checkpoint['model'])

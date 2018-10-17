@@ -14,8 +14,100 @@ from datetime import datetime
 from dataloader import get_data_loader
 from model import LaneNet
 logger = logging.getLogger(__name__)
-from utils import train, test, adjust_learning_rate, str2bool
+from utils import AverageMeter, adjust_learning_rate
 from loss import DiscriminativeLoss
+
+
+def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
+    # average meters to record the training statistics
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+
+    # switch to train mode
+    model.train()
+
+    end = time.time()
+    for i, data in enumerate(loader):
+        # measure data loading time
+        data_time.update(time.time() - end)
+
+        images, bin_labels, ins_labels, n_lanes = data
+
+        images = Variable(images, volatile=False)
+        bin_labels = Variable(bin_labels, volatile=False)
+        ins_labels = Variable(ins_labels, volatile=False)
+
+        if torch.cuda.is_available():
+            images = images.cuda()
+            bin_labels = bin_labels.cuda()
+            ins_labels = ins_labels.cuda()
+
+        bin_preds, ins_preds = model(images)
+
+        _, bin_labels_ce = bin_labels.max(1)
+        ce_loss = criterion_ce(bin_preds.permute(0,2,3,1).contiguous().view(-1,2),
+                               bin_labels_ce.view(-1))
+
+        disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
+        loss = ce_loss + disc_loss
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+
+        # Print log info
+        if i % opt.log_step == 0:
+            logger.info(
+                'Epoch [{0}][{1}/{2}]\t'
+                'Loss {3:0.7f}\t'
+                'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                .format(
+                    epoch, i, len(loader), loss.data[0],
+                    batch_time=batch_time,
+                    data_time=data_time))
+
+        end = time.time()
+
+
+def test(opt, model, criterion_disc, criterion_ce, loader):
+    val_loss = AverageMeter()
+    val_score = AverageScore()
+    model.eval()
+
+    for i, data in enumerate(loader):
+        # Update the model
+        images, bin_labels, ins_labels, n_lanes = data
+
+        images = Variable(images, volatile=False)
+        bin_labels = Variable(bin_labels, volatile=False)
+        ins_labels = Variable(ins_labels, volatile=False)
+
+        if torch.cuda.is_available():
+            images = images.cuda()
+            bin_labels = bin_labels.cuda()
+            ins_labels = ins_labels.cuda()
+
+        bin_preds, ins_preds = model(images)
+
+        _, bin_labels_ce = bin_labels.max(1)
+        ce_loss = criterion_ce(bin_preds.permute(0,2,3,1).contiguous().view(-1,2),
+                               bin_labels_ce.view(-1))
+
+        disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
+        loss = ce_loss + disc_loss
+
+        val_loss.update(loss.data[0])
+
+        if i % opt.log_step == 0:
+            logger.info(
+                'Epoch [{0}][{1}/{2}]\t'
+                'Loss {3:0.7f}\t'.format(
+                    0, i, len(loader), loss.data[0]))
+
+    return val_loss #, val_score
+
 
 def main(opt):
 
@@ -113,8 +205,6 @@ if __name__ == '__main__':
         help='path to image dir')
 
     # Model settings
-    parser.add_argument('--finetune', type=str2bool, default=False,
-                        help='Fine-tune the image encoder.')
     parser.add_argument(
         '--cnn_type',
         default='unet',
