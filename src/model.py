@@ -13,17 +13,17 @@ class LaneNet(nn.Module):
 
     def __init__(
             self,
-            cnn_type='unet',
-            pretrained=True):
-        """Load a pretrained model and replace top fc layer."""
+            cnn_type='unet'):
+        """Load a LaneNet model based on the cnn_type
+        """
         super(LaneNet, self).__init__()
 
-        self.core = self.get_cnn(cnn_type, pretrained)
+        self.core = self.get_cnn(cnn_type)
 
-    def get_cnn(self, cnn_type, pretrained):
-        """Load a pretrained CNN and parallelize over GPUs
+    def get_cnn(self, cnn_type):
+        """Load a LaneNet model based on the cnn_type
         """
-        logger.info("===> Loading pre-trained model '{}'".format(cnn_type))
+        logger.info("===> Loading model '{}'".format(cnn_type))
 
         if cnn_type == 'unet':
             model = UNet()
@@ -46,12 +46,19 @@ class PostProcessor(object):
         pass
 
     def process(self, image, kernel_size=5, minarea_threshold=200):
-        """
+        """Do the post processing here. First the image is converte to grayscale.
+        Then a closing operation is applied to fill empty gaps among surrounding
+        pixels. After that connected component are detected where small components
+        will be removed.
 
-        :param image:
-        :param kernel_size
-        :param minarea_threshold
-        :return:
+        Args:
+            image:
+            kernel_size
+            minarea_threshold
+
+        Returns:
+            image: binary image
+
         """
         if image.dtype is not np.uint8:
             image = np.array(image, np.uint8)
@@ -83,15 +90,22 @@ class LaneClustering(object):
     def __init__(self):
         pass
 
-    def cluster(self, prediction, bandwidth=1.5):
-        """
-        :param prediction:
-        :param bandwidth:
-        :return:
+    def cluster(self, embeddings, bandwidth=1.5):
+        """Clustering pixel embedding into lanes using MeanShift
+
+        Args:
+            prediction: set of pixel embeddings
+            bandwidth: bandwidth used in the RBF kernel
+
+        Returns:
+            num_clusters: number of clusters (or lanes)
+            labels: lane labels for each pixel
+            cluster_centers: centroids
+
         """
         ms = MeanShift(bandwidth, bin_seeding=True)
         try:
-            ms.fit(prediction)
+            ms.fit(embeddings)
         except ValueError as err:
             logger.error(err)
             return 0, [], []

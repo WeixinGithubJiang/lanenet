@@ -17,6 +17,20 @@ logger = logging.getLogger(__name__)
 
 
 def test(model, loader, postprocessor, clustering):
+    """Test a model on image and display detected lanes
+
+    Args:
+        model (LaneNet): a LaneNet model
+        loader (Dataloader) : data loader on test images
+        postprocessor (PostProcessor): post processing, like filling empty gaps
+            between nearby pixels using a closing operator
+        clustering (LaneClustering): cluster lane embeddings to assign pixel
+            to lane instance
+
+    Returns:
+        None
+
+    """
     model.eval()
 
     for data in loader:

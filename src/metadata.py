@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_imageid(s):
-    """ Get image id from the raw_file path,
+    """Get image id from the raw_file path,
     e.g., clips/0313-1/8420/20.jpg'
     return: 0313-1-8420
     """
@@ -19,7 +19,7 @@ def get_imageid(s):
 
 
 def to_json(lines):
-    """ Convert list of json to json format
+    """Convert list of json to json format
     """
     imgs = {}
     for l in lines:

@@ -18,7 +18,23 @@ from loss import DiscriminativeLoss
 logger = logging.getLogger(__name__)
 
 
-def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
+def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
+    """
+    Training the network in one epoch
+
+    Args:
+        opt (Namspace): training options
+        model (LaneNet): a LaneNet model
+        criterion_disc: a DiscriminativeLoss criterion
+        criterion_ce: a CrossEntropyLoss criterion
+        optimizer: optimizer (SGD, Adam, etc)
+        loader: data loader
+
+    Returns:
+        None
+
+    """
+
     batch_time = AverageMeter()
     data_time = AverageMeter()
 
@@ -27,7 +43,7 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
 
     end = time.time()
     pbar = tqdm(loader)
-    # for data in tqdm(loader):
+
     for data in pbar:
         # measure data loading time
         data_time.update(time.time() - end)
@@ -58,9 +74,7 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
         batch_time.update(time.time() - end)
 
         pbar.set_description(
-            '>>> Training epoch={}/{}, loss={:.6f}, i/o time={data_time.avg:.3f}s, gpu time={batch_time.avg:.3f}s'.format(
-                epoch,
-                opt.num_epochs,
+            '>>> Training loss={:.6f}, i/o time={data_time.avg:.3f}s, gpu time={batch_time.avg:.3f}s'.format(
                 loss.item(),
                 data_time=data_time,
                 batch_time=batch_time))
@@ -68,6 +82,21 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
 
 
 def test(opt, model, criterion_disc, criterion_ce, loader):
+    """
+    Validate the model at the current state
+
+    Args:
+        opt (Namspace): training options
+        model (LaneNet): a LaneNet model
+        criterion_disc: a DiscriminativeLoss criterion
+        criterion_ce: a CrossEntropyLoss criterion
+        loader: val data loader
+
+    Returns:
+        The average loss value on val data
+
+    """
+
     val_loss = AverageMeter()
     model.eval()
 
@@ -135,7 +164,7 @@ def main(opt):
     best_loss = sys.maxsize
     best_epoch = 0
 
-    for epoch in range(opt.num_epochs):
+    for epoch in tqdm(range(opt.num_epochs), desc='Epoch: '):
         learning_rate = adjust_learning_rate(opt, optimizer, epoch)
         logger.info('===> Learning rate: %f: ', learning_rate)
 
@@ -146,8 +175,7 @@ def main(opt):
             criterion_disc,
             criterion_ce,
             optimizer,
-            train_loader,
-            epoch)
+            train_loader)
 
         # validate at every val_step epoch
         if epoch % opt.val_step == 0:

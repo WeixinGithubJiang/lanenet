@@ -105,10 +105,13 @@ class DataLoader(data.Dataset):
 
 
 def collate_fn(data):
-    """build a batch of data
+    """Build a batch of data
 
-    Note:
-        probably the default collate_fn will do the same thing
+    Args:
+        data: tuple of itemset that is returned from the __getitem__ function
+
+    Returns:
+
     """
     if len(data[0]) == 4:
         images, bin_labels, ins_labels, n_lanes = zip(*data)
@@ -128,7 +131,7 @@ def collate_fn(data):
 
 
 def get_data_loader(opt, split='train', return_raw_image=False):
-    """Returns torch.utils.data.DataLoader for custom dataset."""
+    """Returns torch.utils.data.DataLoader for a custom dataset."""
 
     dataset = DataLoader(opt, split=split, return_raw_image=return_raw_image)
 
