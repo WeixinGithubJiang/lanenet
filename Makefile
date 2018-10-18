@@ -54,7 +54,7 @@ $(MODEL_DIR)/lanenet.pth: $(META_DIR)/tusimple.json
 		--batch_size 2 \
 		--cnn_type unet 
 
-test: $(META_DIR)/tusimple.json $(MODEL_DIR)/lanenet.pth 
+test: $(META_DIR)/tusimple.json $(MODEL_DIR)/lanenet_20181018.pth 
 	python src/test.py $^ \
 		--image_dir $(IN_DIR) \
-		--batch_size 2 
+		--batch_size 1 

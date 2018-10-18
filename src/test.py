@@ -4,19 +4,23 @@ import json
 from datetime import datetime
 import matplotlib.pyplot as plt
 import cv2
+import time
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
 import logging
+from tqdm import tqdm
+import warnings
 
 from model import LaneNet, PostProcessor, LaneClustering
 from dataloader import get_data_loader
-from utils import get_lane_area, get_lane_mask
+from utils import AverageMeter, get_lane_area, get_lane_mask
 
 logger = logging.getLogger(__name__)
+warnings.filterwarnings('ignore')
 
 
-def test(model, loader, postprocessor, clustering):
+def test(model, loader, postprocessor, clustering, show_demo=False):
     """Test a model on image and display detected lanes
 
     Args:
@@ -33,7 +37,10 @@ def test(model, loader, postprocessor, clustering):
     """
     model.eval()
 
-    for data in loader:
+    run_time = AverageMeter()
+    end = time.time()
+    pbar = tqdm(loader)
+    for data in pbar:
         # Update the model
         images, _, _, _, org_images = data
 
@@ -65,17 +72,23 @@ def test(model, loader, postprocessor, clustering):
             mask_img = get_lane_mask(num_clusters, labels, bin_img,
                                      lane_coordinate)
 
-            plt.ion()
-            plt.figure('mask_image')
-            mask_img = mask_img[:, :, (2, 1, 0)]
-            plt.imshow(mask_img)
-            plt.figure('src_image')
-            src_img = org_images[i]
-            overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
+            if show_demo:
+                plt.ion()
+                plt.figure('mask_image')
+                mask_img = mask_img[:, :, (2, 1, 0)]
+                plt.imshow(mask_img)
+                plt.figure('src_image')
+                src_img = org_images[i]
+                overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
 
-            plt.imshow(overlay_img)
-            plt.pause(3.0)
-            plt.show()
+                plt.imshow(overlay_img)
+                plt.pause(3.0)
+                plt.show()
+
+        run_time.update(time.time() - end)
+        end = time.time()
+        fps = bs/run_time.avg
+        pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
 
 
 def main(opt):
@@ -107,7 +120,7 @@ def main(opt):
     clustering = LaneClustering()
 
     logger.info('Start testing...')
-    test(model, test_loader, postprocessor, clustering)
+    test(model, test_loader, postprocessor, clustering, show_demo=opt.show_demo)
 
 
 if __name__ == '__main__':
@@ -134,6 +147,10 @@ if __name__ == '__main__':
     parser.add_argument(
         '--num_workers', type=int, default=0,
         help='number of workers (each worker use a process to load a batch of data)')
+    parser.add_argument(
+        '--show_demo', default=False, action='store_true',
+        help='whether to show output image or not. If not, the running time \
+        (fps) will be measured.')
     parser.add_argument(
         '--loglevel',
         type=str,
