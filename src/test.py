@@ -1,25 +1,22 @@
 import argparse
-import numpy as np
 import os
-import sys
-import time
-import math
 import json
 from datetime import datetime
 import matplotlib.pyplot as plt
 import cv2
 import torch
-import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
-from model import LaneNet
-from dataloader import get_data_loader
-from utils import PostProcessor, Cluster, get_lane_area, get_lane_mask
-
 import logging
+
+from model import LaneNet, PostProcessor, LaneClustering
+from dataloader import get_data_loader
+from utils import get_lane_area, get_lane_mask
+
 logger = logging.getLogger(__name__)
 
-def test(model, loader, postprocessor, cluster):
+
+def test(model, loader, postprocessor, clustering):
     model.eval()
 
     for data in loader:
@@ -45,13 +42,14 @@ def test(model, loader, postprocessor, cluster):
 
             bin_img = postprocessor.process(bin_img)
 
-            lane_embedding_feats, lane_coordinate = get_lane_area(bin_img, ins_img)
+            lane_embedding_feats, lane_coordinate = get_lane_area(
+                bin_img, ins_img)
 
-            num_clusters, labels, cluster_centers = cluster.cluster(lane_embedding_feats, bandwidth=1.5)
-
+            num_clusters, labels, cluster_centers = clustering.cluster(
+                lane_embedding_feats, bandwidth=1.5)
 
             mask_img = get_lane_mask(num_clusters, labels, bin_img,
-                                        lane_coordinate)
+                                     lane_coordinate)
 
             plt.ion()
             plt.figure('mask_image')
@@ -66,7 +64,6 @@ def test(model, loader, postprocessor, cluster):
             plt.show()
 
 
-
 def main(opt):
     logger.info('Loading model: %s', opt.model_file)
 
@@ -74,7 +71,10 @@ def main(opt):
 
     checkpoint_opt = checkpoint['opt']
     model = LaneNet(cnn_type=checkpoint_opt.cnn_type)
-    test_loader = get_data_loader(checkpoint_opt, split='test', return_raw_image=True)
+    test_loader = get_data_loader(
+        checkpoint_opt,
+        split='test',
+        return_raw_image=True)
 
     logger.info('Building model...')
     model.load_state_dict(checkpoint['model'])
@@ -83,10 +83,10 @@ def main(opt):
         model.cuda()
 
     postprocessor = PostProcessor()
-    cluster = Cluster()
+    clustering = LaneClustering()
 
     logger.info('Start testing...')
-    test(model, test_loader, postprocessor, cluster)
+    test(model, test_loader, postprocessor, clustering)
 
 
 if __name__ == '__main__':
@@ -111,9 +111,7 @@ if __name__ == '__main__':
         default=2,
         help='batch size')
     parser.add_argument(
-        '--num_workers',
-        type=int,
-        default=0,
+        '--num_workers', type=int, default=0,
         help='number of workers (each worker use a process to load a batch of data)')
     parser.add_argument(
         '--loglevel',
@@ -145,4 +143,3 @@ if __name__ == '__main__':
         start = datetime.now()
         main(opt)
         logger.info('Time: %s', datetime.now() - start)
-

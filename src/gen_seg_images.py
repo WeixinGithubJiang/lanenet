@@ -1,9 +1,5 @@
 import argparse
-import numpy as np
 import os
-import sys
-import time
-import math
 import json
 from tqdm import tqdm
 from datetime import datetime
@@ -77,7 +73,10 @@ if __name__ == '__main__':
 
     for split in args.splits:
         image_ids = data[split].keys()
-        logger.info('Processing %d images on split [%s]...', len(image_ids), split)
+        logger.info(
+            'Processing %d images on split [%s]...',
+            len(image_ids),
+            split)
         for image_id in tqdm(image_ids):
             file_name = data[split][image_id]['raw_file']
             file_path = os.path.join(args.image_dir, file_name)
@@ -86,7 +85,8 @@ if __name__ == '__main__':
             bin_image_path = os.path.join(args.bin_dir, output_file)
             ins_image_path = os.path.join(args.ins_dir, output_file)
 
-            if os.path.exists(bin_image_path) and os.path.exists(ins_image_path):
+            if os.path.exists(bin_image_path) and os.path.exists(
+                    ins_image_path):
                 logger.info('Skiped because file existed: %s!', bin_image_path)
                 continue
 
@@ -94,13 +94,14 @@ if __name__ == '__main__':
             x_lanes = data[split][image_id]['lanes']
             y_samples = data[split][image_id]['h_samples']
 
-            pts = [[(x, y) for (x, y) in zip(lane, y_samples) if x >= 0] for lane in x_lanes]
+            pts = [
+                [(x, y) for(x, y) in zip(lane, y_samples) if x >= 0]
+                for lane in x_lanes]
             bin_image = get_binary_image(image, pts, thickness=args.thickness)
-            ins_image = get_instance_image(image, pts, thickness=args.thickness)
-
+            ins_image = get_instance_image(
+                image, pts, thickness=args.thickness)
 
             cv2.imwrite(bin_image_path, bin_image)
             cv2.imwrite(ins_image_path, ins_image)
 
     logger.info('Time: %s', datetime.now() - start)
-

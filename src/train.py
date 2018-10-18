@@ -1,25 +1,24 @@
+import sys
+import time
+import json
 import argparse
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.optim as optim
-import os
-import sys
-import time
-import math
-import json
 import logging
-
 from datetime import datetime
+from tqdm import tqdm
+
 from dataloader import get_data_loader
 from model import LaneNet
-logger = logging.getLogger(__name__)
 from utils import AverageMeter, adjust_learning_rate
 from loss import DiscriminativeLoss
 
+logger = logging.getLogger(__name__)
+
 
 def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
-    # average meters to record the training statistics
     batch_time = AverageMeter()
     data_time = AverageMeter()
 
@@ -27,7 +26,9 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
     model.train()
 
     end = time.time()
-    for i, data in enumerate(loader):
+    pbar = tqdm(loader)
+    # for data in tqdm(loader):
+    for data in pbar:
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -45,29 +46,24 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader, epoch):
         bin_preds, ins_preds = model(images)
 
         _, bin_labels_ce = bin_labels.max(1)
-        ce_loss = criterion_ce(bin_preds.permute(0,2,3,1).contiguous().view(-1,2),
-                               bin_labels_ce.view(-1))
+        ce_loss = criterion_ce(
+            bin_preds.permute(0, 2, 3, 1).contiguous().view(-1, 2),
+            bin_labels_ce.view(-1))
 
         disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
         loss = ce_loss + disc_loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        # measure elapsed time
         batch_time.update(time.time() - end)
 
-        # Print log info
-        if i % opt.log_step == 0:
-            logger.info(
-                'Epoch [{0}][{1}/{2}]\t'
-                'Loss {3:0.7f}\t'
-                'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                .format(
-                    epoch, i, len(loader), loss.data[0],
-                    batch_time=batch_time,
-                    data_time=data_time))
-
+        pbar.set_description(
+            '>>> Training epoch={}/{}, loss={:.6f}, i/o time={data_time.avg:.3f}s, gpu time={batch_time.avg:.3f}s'.format(
+                epoch,
+                opt.num_epochs,
+                loss.item(),
+                data_time=data_time,
+                batch_time=batch_time))
         end = time.time()
 
 
@@ -75,8 +71,8 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
     val_loss = AverageMeter()
     model.eval()
 
-    for i, data in enumerate(loader):
-        # Update the model
+    pbar = tqdm(loader)
+    for data in pbar:
         images, bin_labels, ins_labels, n_lanes = data
 
         images = Variable(images, volatile=False)
@@ -91,19 +87,17 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
         bin_preds, ins_preds = model(images)
 
         _, bin_labels_ce = bin_labels.max(1)
-        ce_loss = criterion_ce(bin_preds.permute(0,2,3,1).contiguous().view(-1,2),
-                               bin_labels_ce.view(-1))
+        ce_loss = criterion_ce(
+            bin_preds.permute(0, 2, 3, 1).contiguous().view(-1, 2),
+            bin_labels_ce.view(-1))
 
         disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
         loss = ce_loss + disc_loss
 
-        val_loss.update(loss.data[0])
+        val_loss.update(loss.item())
 
-        if i % opt.log_step == 0:
-            logger.info(
-                'Epoch [{0}][{1}/{2}]\t'
-                'Loss {3:0.7f}\t'.format(
-                    0, i, len(loader), loss.data[0]))
+        pbar.set_description(
+            '>>> Validating loss={:.6f}'.format(loss.item()))
 
     return val_loss
 
@@ -146,14 +140,24 @@ def main(opt):
         logger.info('===> Learning rate: %f: ', learning_rate)
 
         # train for one epoch
-        train(opt, model, criterion_disc, criterion_ce, optimizer, train_loader, epoch)
+        train(
+            opt,
+            model,
+            criterion_disc,
+            criterion_ce,
+            optimizer,
+            train_loader,
+            epoch)
 
         # validate at every val_step epoch
         if epoch % opt.val_step == 0:
-            logger.info("Start evaluating...")
-            val_loss = test(opt, model, criterion_disc, criterion_ce, val_loader)
-            logger.info('Val loss: \n%s', val_loss)
-            #logger.info('Val score: \n%s', val_score)
+            val_loss = test(
+                opt,
+                model,
+                criterion_disc,
+                criterion_ce,
+                val_loader)
+            logger.info('Val loss: %s\n', val_loss)
 
             loss = val_loss.avg
             if loss < best_loss:
@@ -184,13 +188,13 @@ def main(opt):
             logger.info('Terminated by early stopping!')
             break
 
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        'meta_file',
-        type=str,
+        'meta_file', type=str,
         help='path to the metadata file containing train/val/test splits and image locations')
 
     parser.add_argument(
@@ -256,9 +260,7 @@ if __name__ == '__main__':
                         help='Number of epochs to update the learning rate.')
 
     parser.add_argument(
-        '--max_patience',
-        type=int,
-        default=5,
+        '--max_patience', type=int, default=5,
         help='max number of epoch to run since the minima is detected -- early stopping')
 
     # other options
@@ -269,9 +271,7 @@ if __name__ == '__main__':
         help='how often do we check the model (in terms of epoch)')
 
     parser.add_argument(
-        '--num_workers',
-        type=int,
-        default=0,
+        '--num_workers', type=int, default=0,
         help='number of workers (each worker use a process to load a batch of data)')
 
     parser.add_argument(

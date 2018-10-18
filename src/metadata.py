@@ -1,9 +1,5 @@
 import argparse
-import numpy as np
 import os
-import sys
-import time
-import math
 import json
 from sklearn.model_selection import StratifiedShuffleSplit
 from datetime import datetime
@@ -21,6 +17,7 @@ def get_imageid(s):
     img_id = p[1] + '-' + p[2]
     return img_id
 
+
 def to_json(lines):
     """ Convert list of json to json format
     """
@@ -34,6 +31,7 @@ def to_json(lines):
             imgs[img_id] = img_info
 
     return imgs
+
 
 if __name__ == '__main__':
 
@@ -71,8 +69,8 @@ if __name__ == '__main__':
     start = datetime.now()
 
     trainval_label_files = ['label_data_0313.json',
-                   'label_data_0531.json',
-                   'label_data_0601.json']
+                            'label_data_0531.json',
+                            'label_data_0601.json']
 
     test_label_file = 'test_tasks_0627.json'
 
@@ -92,17 +90,18 @@ if __name__ == '__main__':
     logger.info('Loaded %s training images', n_train_images)
 
     # this is to make sure val data is stratified over all annotation files
-    sss = StratifiedShuffleSplit(n_splits=1, test_size=args.val_size, random_state=0)
+    sss = StratifiedShuffleSplit(
+        n_splits=1,
+        test_size=args.val_size,
+        random_state=0)
     train_index, val_index = next(sss.split(trainval_lines, trainval_fileids))
 
     train_lines = [trainval_lines[i] for i in train_index]
     val_lines = [trainval_lines[i] for i in val_index]
 
-
     test_label_file = os.path.join(args.input_dir, test_label_file)
     test_lines = [l for l in open(test_label_file, 'rb')]
     logger.info('Loaded %s test images', len(test_lines))
-
 
     out = {}
     out['train'] = to_json(train_lines)
@@ -116,4 +115,3 @@ if __name__ == '__main__':
     json.dump(out, open(args.output_file, 'w'))
     logger.info('Saved output to %s', args.output_file)
     logger.info('Time: %s', datetime.now() - start)
-

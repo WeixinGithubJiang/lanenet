@@ -1,5 +1,4 @@
 import os
-import sys
 import torch
 import torchvision.transforms as transforms
 import torch.utils.data as data
@@ -7,9 +6,7 @@ import numpy as np
 import json
 import cv2
 from utils import get_binary_labels, get_instance_labels
-import matplotlib.pyplot as plt
 import logging
-from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +38,8 @@ class DataLoader(data.Dataset):
         self.max_lanes = opt.max_lanes
         self.return_raw_image = return_raw_image
 
-        self.image_transform = get_image_transform(height=self.height, width=self.width)
+        self.image_transform = get_image_transform(
+            height=self.height, width=self.width)
 
         logger.info('Loading meta file: %s', opt.meta_file)
 
@@ -56,7 +54,7 @@ class DataLoader(data.Dataset):
         file_name = self.info[image_id]['raw_file']
         file_path = os.path.join(self.image_dir, file_name)
         #image = Image.open(file_path).convert('RGB')
-        image = cv2.imread(file_path) # in BGR order
+        image = cv2.imread(file_path)  # in BGR order
         width_org = image.shape[1]
         height_org = image.shape[0]
 
@@ -64,7 +62,9 @@ class DataLoader(data.Dataset):
 
         x_lanes = self.info[image_id]['lanes']
         y_samples = self.info[image_id]['h_samples']
-        pts = [[(x, y) for (x, y) in zip(lane, y_samples) if x >= 0] for lane in x_lanes]
+        pts = [
+            [(x, y) for(x, y) in zip(lane, y_samples) if x >= 0]
+            for lane in x_lanes]
 
         # remove empty lines (not sure the role of these lines, but it causes
         # bugs)
@@ -73,7 +73,8 @@ class DataLoader(data.Dataset):
         x_rate = 1.0*self.width/width_org
         y_rate = 1.0*self.height/height_org
 
-        pts = [[(int(round(x*x_rate)), int(round(y*y_rate))) for (x, y) in lane] for lane in pts]
+        pts = [[(int(round(x*x_rate)), int(round(y*y_rate)))
+                for (x, y) in lane] for lane in pts]
 
         # get the binary segmentation image and convert it into labels,
         # that has size 2 x Height x Weight
@@ -83,8 +84,8 @@ class DataLoader(data.Dataset):
         # get the instance segmentation image and convert it to labels
         # that has size Max_lanes x Height x Width
         ins_labels, n_lanes = get_instance_labels(self.height, self.width, pts,
-                                         thickness=self.thickness,
-                                         max_lanes=self.max_lanes)
+                                                  thickness=self.thickness,
+                                                  max_lanes=self.max_lanes)
         # transform the image, and convert to Tensor
         image_t = self.image_transform(image)
         bin_labels = torch.Tensor(bin_labels)
@@ -101,6 +102,7 @@ class DataLoader(data.Dataset):
 
     def __len__(self):
         return len(self.image_ids)
+
 
 def collate_fn(data):
     """build a batch of data
@@ -135,6 +137,6 @@ def get_data_loader(opt, split='train', return_raw_image=False):
                                               num_workers=opt.num_workers,
                                               batch_size=opt.batch_size,
                                               collate_fn=collate_fn,
-                                              shuffle=split=='train')
+                                              shuffle=split == 'train')
 
     return data_loader
