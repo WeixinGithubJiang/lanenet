@@ -70,7 +70,14 @@ def main(opt):
     checkpoint = torch.load(opt.model_file)
 
     checkpoint_opt = checkpoint['opt']
+
+    # Load model location
     model = LaneNet(cnn_type=checkpoint_opt.cnn_type)
+
+    # Update/Overwrite some test options like batch size, location to metadata
+    # file
+    vars(checkpoint_opt).update(vars(opt))
+
     test_loader = get_data_loader(
         checkpoint_opt,
         split='test',
