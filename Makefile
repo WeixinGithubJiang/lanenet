@@ -9,6 +9,7 @@ META_DIR=$(OUT_DIR)/metadata
 MODEL_DIR=$(OUT_DIR)/model
 BIN_DIR=$(OUT_DIR)/bin_images # contains binary segmentation images
 INS_DIR=$(OUT_DIR)/ins_images # contains instance segmentation images
+TEST_IMG_DIR=/home/sang/datasets/20180914
 ## variables
 
 
@@ -54,7 +55,20 @@ $(MODEL_DIR)/lanenet.pth: $(META_DIR)/tusimple.json
 		--batch_size 2 \
 		--cnn_type unet 
 
-test: $(META_DIR)/tusimple.json $(MODEL_DIR)/lanenet_20181018.pth 
-	python src/test.py $^ \
+test: $(MODEL_DIR)/lanenet_20181018.pth $(META_DIR)/tusimple.json 
+	python src/test.py $< \
+		--meta_file $(word 2, $^) \
 		--image_dir $(IN_DIR) \
+		--save_dir $(OUT_DIR)/test_tusimple \
+		--loader_type meta \
+		--show_demo \
+		--batch_size 1 
+
+test_dir: $(MODEL_DIR)/lanenet_20181018.pth 
+	python src/test.py $^ \
+		--image_dir $(TEST_IMG_DIR) \
+		--save_dir $(OUT_DIR)/test_dir \
+		--loader_type dir \
+		--image_ext png \
+		--show_demo \
 		--batch_size 1 

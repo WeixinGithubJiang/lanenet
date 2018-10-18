@@ -45,7 +45,7 @@ class PostProcessor(object):
     def __init__(self):
         pass
 
-    def process(self, image, kernel_size=5, minarea_threshold=200):
+    def process(self, image, kernel_size=5, minarea_threshold=10):
         """Do the post processing here. First the image is converte to grayscale.
         Then a closing operation is applied to fill empty gaps among surrounding
         pixels. After that connected component are detected where small components

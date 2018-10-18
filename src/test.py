@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings('ignore')
 
 
-def test(model, loader, postprocessor, clustering, show_demo=False):
+def test(model, loader, postprocessor, clustering,
+         show_demo=False, save_dir=None):
     """Test a model on image and display detected lanes
 
     Args:
@@ -40,9 +41,12 @@ def test(model, loader, postprocessor, clustering, show_demo=False):
     run_time = AverageMeter()
     end = time.time()
     pbar = tqdm(loader)
+    if save_dir and not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
     for data in pbar:
         # Update the model
-        images, _, _, _, org_images = data
+        images, _, _, _, org_images, image_ids = data
 
         images = Variable(images, volatile=False)
 
@@ -60,30 +64,35 @@ def test(model, loader, postprocessor, clustering, show_demo=False):
         for i in range(bs):
             bin_img = bin_preds[i].data.cpu().numpy()
             ins_img = ins_preds[i].data.cpu().numpy()
+            image_id = image_ids[i]
 
             bin_img = postprocessor.process(bin_img)
 
             lane_embedding_feats, lane_coordinate = get_lane_area(
                 bin_img, ins_img)
+            if lane_embedding_feats.size > 0:
+                num_clusters, labels, cluster_centers = clustering.cluster(
+                    lane_embedding_feats, bandwidth=1.5)
 
-            num_clusters, labels, cluster_centers = clustering.cluster(
-                lane_embedding_feats, bandwidth=1.5)
+                mask_img = get_lane_mask(num_clusters, labels, bin_img,
+                                        lane_coordinate)
 
-            mask_img = get_lane_mask(num_clusters, labels, bin_img,
-                                     lane_coordinate)
+                mask_img = mask_img[:, :, (2, 1, 0)]
+                src_img = org_images[i]
+                overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
+            else:
+                overlay_img = org_images[i]
 
             if show_demo:
                 plt.ion()
-                plt.figure('mask_image')
-                mask_img = mask_img[:, :, (2, 1, 0)]
-                plt.imshow(mask_img)
-                plt.figure('src_image')
-                src_img = org_images[i]
-                overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
-
+                plt.figure('result')
                 plt.imshow(overlay_img)
-                plt.pause(3.0)
                 plt.show()
+                plt.pause(0.01)
+
+            if save_dir:
+                image_path = os.path.join(save_dir, image_id + '.' + opt.image_ext)
+                cv2.imwrite(image_path, overlay_img)
 
         run_time.update(time.time() - end)
         end = time.time()
@@ -108,7 +117,8 @@ def main(opt):
     test_loader = get_data_loader(
         checkpoint_opt,
         split='test',
-        return_raw_image=True)
+        return_raw_image=True,
+        loader_type=opt.loader_type)
 
     logger.info('Building model...')
     model.load_state_dict(checkpoint['model'])
@@ -120,7 +130,13 @@ def main(opt):
     clustering = LaneClustering()
 
     logger.info('Start testing...')
-    test(model, test_loader, postprocessor, clustering, show_demo=opt.show_demo)
+    test(
+        model,
+        test_loader,
+        postprocessor,
+        clustering,
+        show_demo=opt.show_demo,
+        save_dir=opt.save_dir)
 
 
 if __name__ == '__main__':
@@ -128,17 +144,33 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        'meta_file',
-        type=str,
-        help='path to the metadata file containing the testing labels info')
-    parser.add_argument(
         'model_file',
         type=str,
         help='path to the model file')
     parser.add_argument(
+        '--meta_file',
+        type=str,
+        help='path to the metadata file containing the testing labels info')
+    parser.add_argument(
         '--image_dir',
         type=str,
         help='path to the image dir')
+    parser.add_argument(
+        '--save_dir',
+        type=str,
+        default=None,
+        help='path to the save dir')
+    parser.add_argument(
+        '--image_ext',
+        type=str,
+        default='png',
+        help='image extension, used to glob images based on its extension')
+    parser.add_argument(
+        '--loader_type',
+        type=str,
+        choices=['meta', 'dir'],
+        default='meta',
+        help='data loader type, dir: from a directory; meta: from a metadata file')
     parser.add_argument(
         '--batch_size',
         type=int,
