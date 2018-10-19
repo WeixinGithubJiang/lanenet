@@ -92,7 +92,7 @@ def test(model, loader, postprocessor, clustering,
 
             if save_dir:
                 image_path = os.path.join(save_dir, image_id + '.' + opt.image_ext)
-                cv2.imwrite(image_path, overlay_img)
+                cv2.imwrite(image_path, cv2.cvtColor(overlay_img, cv2.COLOR_RGB2BGR))
 
         run_time.update(time.time() - end)
         end = time.time()
