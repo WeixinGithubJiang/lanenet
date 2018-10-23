@@ -2,6 +2,7 @@
 
 Pytorch implementation of lane detection networks. This is mainly based on the approach proposed in [Towards End-to-End Lane Detection: an Instance Segmentation Approach](https://arxiv.org/abs/1802.05591). This model simultaneously optimizes a binary semantic segmentation network using cross entropy loss, and a (lane) instance semantic segmentation using discriminative loss.
 
+
 ## Installation
 This code has been tested on ubuntu 16.04(x64), python3.7, pytorch-0.4.1, cuda-9.0 with a GTX-1060 GPU. 
 The Python environment can be imported from the `requirements.txt` file:
@@ -32,17 +33,75 @@ usage: train.py [-h] [--image_dir IMAGE_DIR] [--cnn_type {unet}]
 ```
 
 ## Test model
-- Run `make test`
+- Run `make test_tusimple`
 
 ```
-usage: test.py [-h] [--image_dir IMAGE_DIR] [--batch_size BATCH_SIZE]
-               [--num_workers NUM_WORKERS]
-               [--loglevel {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
-               meta_file model_file
+usage: test.py [-h] [--meta_file META_FILE] [--output_file OUTPUT_FILE]
+               [--image_dir IMAGE_DIR] [--save_dir SAVE_DIR]
+               [--image_ext IMAGE_EXT] [--loader_type {meta,dir,tutest}]
+               [--batch_size BATCH_SIZE] [--num_workers NUM_WORKERS]
+               [--show_demo] [--loglevel {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+               model_file
 ```
+## Evaluation on TuSimple's Benchmark
+- Run `eval_tusimple`. This will need the evaluation script from the [organizer](https://github.com/TuSimple/tusimple-benchmark). If you haven't clone it yet, you can do it by `git submodule update --init --recursive`. This evaluation script require Python 2 to run. You can create a seperate enviroment named `py2` for the evaluation. 
+- Results: 
+```
+[{"name":"Accuracy","value":0.9058434751,"order":"desc"},{"name":"FP","value":0.1460579919,"order":"asc"},{"name":"FN","value":0.1156841601,"order":"asc"}]
+```
+The accuracy reported in the paper is 96.4%. There are a couple of things we can do to fully reproduce this result, including:
+- Implement H-Net for the curve-fitting.  
+- Use a more advanced encoder-decoder network, not UNet as in the current implementation. 
 
-## Demo
-   Check out the notebook to view groundtruth data [here](notebooks/view_groundtruth.ipynb), and to view examples of prediction results [here](notebooks/view_prediction.ipynb).
+
+## Demo 
+- Run `demo_tusimple` to view the results of lane detection on TuSimple test images.
+
+- Lane detection results on TuSimple's test images
+<p align="center">
+ <a href="https://youtu.be/tFj3mUFFbIw"><img src="./demo/test_tusimple.gif" alt="Lane detection on TuSimple's test images
+" width="50%" height="50%"></a>
+ <br>Lane detection on TuSimple's test images (click for full video)
+</p>
+
+- Lane detection results on our test images
+
+<table style="width:100%">
+  <tr>
+    <th>
+      <p align="center">
+ <a href="https://youtu.be/BTahzPYY20k"><img src="./demo/test_ascent1.gif" alt="Lane detection on Ascent's images (video 1)
+" width="100%" height="100%"></a>
+ <br>Video 1
+</p>
+    </th>
+    <th>
+      <p align="center">
+ <a href="https://youtu.be/WBNw1tKe4xE"><img src="./demo/test_ascent2.gif" alt="Lane detection on Ascent's images (video 2)
+" width="100%" height="100%"></a>
+ <br>Video 2
+</p>
+    </th>
+    <th>
+      <p align="center">
+ <a href="https://youtu.be/2TiQuKux3JU"><img src="./demo/test_ascent3.gif" alt="Lane detection on Ascent's images (video 3)
+" width="100%" height="100%"></a>
+ <br>Video 3
+</p>
+    </th>
+    <th>
+      <p align="center">
+ <a href="https://youtu.be/enVAMUN2qmE"><img src="./demo/test_ascent4.gif" alt="Lane detection on Ascent's images (video 4)
+" width="100%" height="100%"></a>
+ <br>Video 4
+</p>
+    </th>
+  
+  </tr>
+</table>
+
+## Notebooks
+- Check out the notebook to view groundtruth data [here](notebooks/view_groundtruth.ipynb), and to view examples of prediction results [here](notebooks/view_prediction.ipynb).
 
 ## Acknowledgements
 - [Implemention of lanenet model for real time lane detection using deep neural network model](https://github.com/MaybeShewill-CV/lanenet-lane-detection)
