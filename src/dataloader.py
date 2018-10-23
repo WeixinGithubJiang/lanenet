@@ -139,6 +139,50 @@ class DataLoader(data.Dataset):
     def __len__(self):
         return len(self.image_ids)
 
+class TestLoader(data.Dataset):
+    """Load image and y_samples, generate x_lanes for each lane
+    this is used at test time, where the full x, y labels are not available
+    """
+    def __init__(self, opt):
+        super(TestLoader, self).__init__()
+
+        self.image_dir = opt.image_dir
+        self.thickness = opt.thickness
+        self.height = opt.height
+        self.width = opt.width
+        self.max_lanes = opt.max_lanes
+
+        self.image_transform = get_image_transform(
+            height=self.height, width=self.width)
+
+        test_lines = [l for l in open(opt.meta_file, 'rb')]
+        logger.info('Loaded %s test images', len(test_lines))
+
+        info = []
+        for l in test_lines:
+            img_info = json.loads(l)
+            info.append(img_info)
+        self.info = info
+
+    def __getitem__(self, index):
+
+        file_name = self.info[index]['raw_file']
+        file_path = os.path.join(self.image_dir, file_name)
+        image = cv2.imread(file_path)  # in BGR order
+        width_org = image.shape[1]
+        height_org = image.shape[0]
+
+        image = cv2.resize(image, (self.width, self.height))
+        # transform the image, and convert to Tensor
+        image = self.image_transform(image)
+
+        y_samples = self.info[index]['h_samples']
+
+        return image, y_samples, width_org, height_org
+
+    def __len__(self):
+        return len(self.info)
+
 
 def collate_fn_meta(data):
     """Build a batch of data, used when loader_type is meta file
@@ -184,6 +228,25 @@ def collate_fn_dir(data):
 
     return images, None, None, None, raw_images, image_ids
 
+def collate_fn_tutest(data):
+    """Build a batch of data, used when load_type is tutest (test format of
+    TuSimple dataset)
+
+    Args:
+        data: tuple of itemset that is returned from the __getitem__ function
+
+    Returns:
+
+    """
+    images, y_samples, widths, heights = zip(*data)
+
+    images = torch.stack(images, 0)
+    y_samples = list(y_samples)
+    widths = list(widths)
+    heights = list(heights)
+
+    return images, y_samples, widths, heights
+
 
 def get_data_loader(opt, split='train',
                     return_raw_image=False, loader_type='meta'):
@@ -198,6 +261,9 @@ def get_data_loader(opt, split='train',
     elif loader_type == 'dir':
         dataset = ImageLoader(opt)
         collate_fn = collate_fn_dir
+    elif loader_type == 'tutest':
+        dataset = TestLoader(opt)
+        collate_fn = collate_fn_tutest
     else:
         raise ValueError('Unknown loader_type: %s', loader_type)
 

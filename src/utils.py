@@ -184,10 +184,14 @@ class AverageMeter(object):
 
 
 def get_lane_area(binary_seg_ret, instance_seg_ret):
-    """
-    :param binary_seg_ret:
-    :param instance_seg_ret:
-    :return:
+    """ Get possible lane area from the binary segmentation results
+
+    Args:
+        binary_seg_ret:
+        instance_seg_ret:
+
+    Returns:
+
     """
     idx = np.where(binary_seg_ret == 1)
 
@@ -204,9 +208,17 @@ def get_lane_area(binary_seg_ret, instance_seg_ret):
 
 def get_lane_mask(num_clusters, labels, binary_seg_ret, lane_coordinate):
     """
-    :param binary_seg_ret:
-    :param instance_seg_ret:
-    :return:
+    Get a masking images, where each lane is colored by a different color
+
+    Args:
+        num_clusters: number of possible lanes
+        labels: lane label for each point
+        binary_seg_ret:
+        lane_coordinate
+
+    Returns:
+        a mask image
+
     """
 
     color_map = [(255, 0, 0),
@@ -249,3 +261,45 @@ def get_lane_mask(num_clusters, labels, binary_seg_ret, lane_coordinate):
             thickness=2)
 
     return mask_image
+
+def output_lanes(num_clusters, labels, binary_seg_ret, lane_coordinate, y_samples):
+    """ Output lane predictions according to TuSimple Challenge's format
+    Basically, provide x coordinate at each requested y coordinate
+
+    At first a polynominal line is fitted, then its coefficients are used to
+    make the predictions on new y points. The degree of the polynomial is set
+    to the length of the y_samples, which could be not optimal
+
+    Args:
+        num_clusters:
+        labels:
+        binary_seg_ret:
+        lane_coordinate:
+        y_samples:
+
+    Returns:
+        x_lanes: list of x-coordinate for each lane
+
+    """
+    if num_clusters > 8:
+        cluster_sample_nums = []
+        for i in range(num_clusters):
+            cluster_sample_nums.append(len(np.where(labels == i)[0]))
+        sort_idx = np.argsort(-np.array(cluster_sample_nums, np.int64))
+        cluster_index = np.array(range(num_clusters))[sort_idx[0:8]]
+    else:
+        cluster_index = range(num_clusters)
+
+    x_lanes = []
+    for index, ci in enumerate(cluster_index):
+        idx = np.where(labels == ci)
+        coord = lane_coordinate[idx]
+        y = coord[:, 0]
+        x = coord[:, 1]
+        z = np.polyfit(y, x, len(y_samples))
+        predictor = np.poly1d(z)
+        x_lane = [predictor(y) for y in y_samples]
+        x_lanes.append(x_lane)
+
+    return x_lanes
+
