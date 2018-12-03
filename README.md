@@ -50,6 +50,32 @@ For example,
 }
 ```
 
+## Generate training image/label from raw input in aforementioned format
+Lane detection is an image segmention task. Each pixel will have a label that indicates whether it belongs to a lane or not. Furthermore, we use different id to label different lane. 
+
+<table style="width:100%">
+  <tr>
+    <th>
+      <p align="center">
+ <a href="https://youtu.be/WBNw1tKe4xE"><img src="./demo/example_org.png" alt="Original image" width="100%" height="100%"></a>
+ <br>Original image
+</p>
+    </th>
+    <th>
+      <p align="center">
+ <a href="https://youtu.be/2TiQuKux3JU"><img src="./demo/example_label.png" alt="Label image" width="100%" height="100%"></a>
+ <br>Label image
+</p>
+    </th>
+    <th>
+      <p align="center">
+ <a href="https://youtu.be/enVAMUN2qmE"><img src="./demo/example_overlay.png" alt="Overlay image" width="100%" height="100%"></a>
+ <br>Overlay image
+</p>
+    </th>
+  </tr>
+</table>
+
 ## Generate train/val/test splits
 - Run: `make matadata` to generate train/val/test split. Note that currently the test labels are not available, so we cannot do the quantitative evaluation yet. 
 
