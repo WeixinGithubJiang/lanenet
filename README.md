@@ -2,6 +2,11 @@
 
 Pytorch implementation of lane detection networks. This is mainly based on the approach proposed in [Towards End-to-End Lane Detection: an Instance Segmentation Approach](https://arxiv.org/abs/1802.05591). This model simultaneously optimizes a binary semantic segmentation network using cross entropy loss, and a (lane) instance semantic segmentation using discriminative loss.
 
+TODO:
+- [x] Train/Test on TuSimple dataset
+- [ ] Train/Test on CULane dataset
+- [ ] Train/Test on BDD dataset
+- [ ] Add other SoA lane detection networks, such as [SCNN](https://github.com/XingangPan/SCNN)
 
 ## Installation
 This code has been tested on ubuntu 16.04(x64), python3.7, pytorch-0.4.1, cuda-9.0 with a GTX-1060 GPU. 
@@ -13,6 +18,37 @@ pip install -r requirements.txt
 ## Download data
 - Edit the Makefile file and set the input directory $(IN_DIR) location. This is place where the dataset will be stored. If you already downloaded the data, then you can skip this step.
 - Download [TuSimple dataset](https://github.com/TuSimple/tusimple-benchmark/wiki): `make download`.  Then extract the data.
+
+- Input data format (of TuSimple dataset, as described [here](https://github.com/TuSimple/tusimple-benchmark/tree/master/doc/lane_detection))
+```
+{
+      'raw_file': str. 20th frame file path in a clip.
+      'lanes': list. A list of lanes. For each list of one lane, the elements are width values on image.
+      'h_samples': list. A list of height values corresponding to the 'lanes', which means len(h_samples) == len(lanes[i])
+}
+```
+
+For example,
+```
+{
+  "lanes": [
+        [-2, -2, -2, -2, 632, 625, 617, 609, 601, 594, 586, 578, 570, 563, 555, 547, 539, 532, 524, 516, 508, 501, 493, 485, 477, 469, 462, 454, 446, 438, 431, 423, 415, 407, 400, 392, 384, 376, 369, 361, 353, 345, 338, 330, 322, 314, 307, 299],
+        [-2, -2, -2, -2, 719, 734, 748, 762, 777, 791, 805, 820, 834, 848, 863, 877, 891, 906, 920, 934, 949, 963, 978, 992, 1006, 1021, 1035, 1049, 1064, 1078, 1092, 1107, 1121, 1135, 1150, 1164, 1178, 1193, 1207, 1221, 1236, 1250, 1265, -2, -2, -2, -2, -2],
+        [-2, -2, -2, -2, -2, 532, 503, 474, 445, 416, 387, 358, 329, 300, 271, 241, 212, 183, 154, 125, 96, 67, 38, 9, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2],
+        [-2, -2, -2, 781, 822, 862, 903, 944, 984, 1025, 1066, 1107, 1147, 1188, 1229, 1269, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2]
+       ],
+  "h_samples": [240, 250, 260, 270, 280, 290, 300, 310, 320, 330, 340, 350, 360, 370, 380, 390, 400, 410, 420, 430, 440, 450, 460, 470, 480, 490, 500, 510, 520, 530, 540, 550, 560, 570, 580, 590, 600, 610, 620, 630, 640, 650, 660, 670, 680, 690, 700, 710],
+  "raw_file": "path_to_clip"
+}
+```
+- Output data format. Given a list of `h_samples`, output a list of lanes with x-coordinate for each lane.
+```
+{
+  'raw_file': str. 20th frame file path in a clip.
+  'lanes': list. A list of lanes. For each list of one lane, there is only width index on the image.
+  'run_time': list of float. The running time for each frame in the clip. The unit is millisecond.
+}
+```
 
 ## Generate train/val/test splits
 - Run: `make matadata` to generate train/val/test split. Note that currently the test labels are not available, so we cannot do the quantitative evaluation yet. 
