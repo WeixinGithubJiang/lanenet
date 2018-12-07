@@ -103,8 +103,7 @@ class DiscriminativeLoss(_Loss):
 
             # n_clusters
             c_var = var_sample.sum(1) / target_sample.sum(1)
-            # import pdb; pdb.set_trace()
-            var_term += c_var.sum() / n_clusters[i]
+            var_term += c_var.sum() / n_clusters[i].float()
         var_term /= bs
 
         return var_term
@@ -130,7 +129,7 @@ class DiscriminativeLoss(_Loss):
             if self.usegpu:
                 margin = margin.cuda()
             c_dist = torch.sum(torch.clamp(margin - torch.norm(diff, self.norm, 0), min=0) ** 2)
-            dist_term += c_dist / (2 * n_clusters[i] * (n_clusters[i] - 1))
+            dist_term += c_dist / float(2 * n_clusters[i] * (n_clusters[i] - 1))
         dist_term /= bs
 
         return dist_term

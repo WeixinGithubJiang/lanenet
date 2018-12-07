@@ -3,23 +3,38 @@ import os
 import json
 from sklearn.model_selection import StratifiedShuffleSplit
 from datetime import datetime
-
+from tqdm import tqdm
 import logging
 logger = logging.getLogger(__name__)
 
 
-def get_imageid(s):
+def get_imageid(s, dataset='tusimple'):
     """Get image id from the raw_file path,
     e.g., clips/0313-1/8420/20.jpg'
     return: 0313-1-8420
+
+    culane: driver_23_30frame/05151649_0422.MP4/00000.jpg
+            driver_23_30frame_05151649_0422_00000
     """
-    p = s.split('/')
-    img_id = p[1] + '-' + p[2]
+    if dataset == 'tusimple':
+        p = s.split('/')
+        img_id = p[1] + '-' + p[2]
+    elif dataset == 'culane':
+        p = list(filter(None, s.split('/')))
+        p[1] = p[1].split('.')[0]
+        p[2] = p[2].split('.')[0]
+        img_id = '_'.join(p)
+    else:
+        img_id = s
     return img_id
 
 
 def to_json(lines):
     """Convert list of json to json format
+
+    Return:
+        imgs[img_id] = {'lanes': [], 'h_samples': [], 'raw_file': []}
+
     """
     imgs = {}
     for l in lines:
@@ -32,6 +47,75 @@ def to_json(lines):
 
     return imgs
 
+def generate_culane(input_dir, image_ext='.jpg'):
+    """ Generate metadata for TuSimple dataset
+    """
+
+    splits = ['train', 'val', 'test']
+
+    out = {}
+    for split in splits:
+        label_file = os.path.join(input_dir, 'list', split + '.txt')
+        image_list = [f.rstrip('\n') for f in open(label_file)]
+        logger.info('Generating metadata for split: %s', split)
+        split_imgs = {}
+        for image_file in tqdm(image_list):
+            img_id = get_imageid(image_file, dataset='culane')
+            label_file = input_dir + image_file.replace(image_ext, '.lines.txt')
+            label_lines = [[float(x) for x in f.split()] for f in open(label_file, 'r')]
+            pts = [list(zip(lane[0::2], lane[1::2])) for lane in label_lines]
+            img_info = {
+                'raw_file': image_file,
+                'pts': pts
+            }
+            split_imgs[img_id] = img_info
+        out[split] = split_imgs
+    return out
+
+def generate_tusimple(input_dir, val_size):
+    """ Generate metadata for TuSimple dataset
+    """
+    trainval_label_files = ['label_data_0313.json',
+                            'label_data_0531.json',
+                            'label_data_0601.json']
+
+    test_label_file = 'test_tasks_0627.json'
+
+    trainval_lines = []
+    trainval_fileids = []
+    n_train_images = 0
+    for i, f in enumerate(trainval_label_files):
+        label_file = os.path.join(input_dir, f)
+        lines = [l for l in open(label_file, 'rb')]
+        logger.info('Loaded %s images', len(lines))
+        n_train_images += len(lines)
+        trainval_lines.extend(lines)
+
+        y = [i]*len(lines)
+        trainval_fileids.extend(y)
+
+    logger.info('Loaded %s training images', n_train_images)
+
+    # this is to make sure val data is stratified over all annotation files
+    sss = StratifiedShuffleSplit(
+        n_splits=1,
+        test_size=val_size,
+        random_state=0)
+    train_index, val_index = next(sss.split(trainval_lines, trainval_fileids))
+
+    train_lines = [trainval_lines[i] for i in train_index]
+    val_lines = [trainval_lines[i] for i in val_index]
+
+    test_label_file = os.path.join(input_dir, test_label_file)
+    test_lines = [l for l in open(test_label_file, 'rb')]
+    logger.info('Loaded %s test images', len(test_lines))
+
+    out = {}
+    out['train'] = to_json(train_lines)
+    out['val'] = to_json(val_lines)
+    out['test'] = to_json(test_lines)
+
+    return out
 
 if __name__ == '__main__':
 
@@ -42,6 +126,11 @@ if __name__ == '__main__':
         type=str,
         help='Path to the dataset directory'
     )
+    parser.add_argument(
+        '--dataset',
+        default='tusimple',
+        choices=['tusimple', 'culane'],
+        help='Name of dataset')
     parser.add_argument(
         '--output_file',
         type=str,
@@ -68,49 +157,16 @@ if __name__ == '__main__':
 
     start = datetime.now()
 
-    trainval_label_files = ['label_data_0313.json',
-                            'label_data_0531.json',
-                            'label_data_0601.json']
-
-    test_label_file = 'test_tasks_0627.json'
-
-    trainval_lines = []
-    trainval_fileids = []
-    n_train_images = 0
-    for i, f in enumerate(trainval_label_files):
-        label_file = os.path.join(args.input_dir, f)
-        lines = [l for l in open(label_file, 'rb')]
-        logger.info('Loaded %s images', len(lines))
-        n_train_images += len(lines)
-        trainval_lines.extend(lines)
-
-        y = [i]*len(lines)
-        trainval_fileids.extend(y)
-
-    logger.info('Loaded %s training images', n_train_images)
-
-    # this is to make sure val data is stratified over all annotation files
-    sss = StratifiedShuffleSplit(
-        n_splits=1,
-        test_size=args.val_size,
-        random_state=0)
-    train_index, val_index = next(sss.split(trainval_lines, trainval_fileids))
-
-    train_lines = [trainval_lines[i] for i in train_index]
-    val_lines = [trainval_lines[i] for i in val_index]
-
-    test_label_file = os.path.join(args.input_dir, test_label_file)
-    test_lines = [l for l in open(test_label_file, 'rb')]
-    logger.info('Loaded %s test images', len(test_lines))
-
-    out = {}
-    out['train'] = to_json(train_lines)
-    out['val'] = to_json(val_lines)
-    out['test'] = to_json(test_lines)
-
     output_dir = os.path.dirname(args.output_file)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
+    if args.dataset == 'tusimple':
+        out = generate_tusimple(args.input_dir, args.val_size)
+    elif args.dataset == 'culane':
+        out = generate_culane(args.input_dir)
+    else:
+        raise ValueError('Unknown dataset %s', args.dataset)
 
     json.dump(out, open(args.output_file, 'w'))
     logger.info('Saved output to %s', args.output_file)

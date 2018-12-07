@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import json
@@ -58,6 +59,7 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
             images = images.cuda()
             bin_labels = bin_labels.cuda()
             ins_labels = ins_labels.cuda()
+            n_lanes = n_lanes.cuda()
 
         bin_preds, ins_preds = model(images)
 
@@ -112,6 +114,7 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
             images = images.cuda()
             bin_labels = bin_labels.cuda()
             ins_labels = ins_labels.cuda()
+            n_lanes = n_lanes.cuda()
 
         bin_preds, ins_preds = model(images)
 
@@ -139,8 +142,18 @@ def main(opt):
     else:
         torch.manual_seed(opt.seed)
 
-    train_loader = get_data_loader(opt, split='train')
-    val_loader = get_data_loader(opt, split='val')
+    train_loader = get_data_loader(opt,
+                                   split='train',
+                                   return_org_image=False)
+
+    val_loader = get_data_loader(opt,
+                                 split='val',
+                                 return_org_image=False)
+
+
+    output_dir = os.path.dirname(opt.output_file)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     logger.info('Building model...')
 
@@ -216,7 +229,6 @@ def main(opt):
             logger.info('Terminated by early stopping!')
             break
 
-
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -229,6 +241,12 @@ if __name__ == '__main__':
         'output_file',
         type=str,
         help='output model file (*.pth)')
+
+    parser.add_argument(
+        '--dataset',
+        default='tusimple',
+        choices=['tusimple', 'culane'],
+        help='Name of dataset')
 
     parser.add_argument(
         '--image_dir',
@@ -282,9 +300,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--num_epochs',
         type=int,
-        default=30,
+        default=100,
         help='max number of epochs to run the training')
-    parser.add_argument('--lr_update', default=10, type=int,
+    parser.add_argument('--lr_update', default=50, type=int,
                         help='Number of epochs to update the learning rate.')
 
     parser.add_argument(
@@ -309,17 +327,6 @@ if __name__ == '__main__':
         help='How often to print training info (loss, system/data time, etc)')
 
     parser.add_argument(
-        '--loglevel',
-        type=str,
-        default='DEBUG',
-        choices=[
-            'DEBUG',
-            'INFO',
-            'WARNING',
-            'ERROR',
-            'CRITICAL'])
-
-    parser.add_argument(
         '--seed',
         type=int,
         default=123,
@@ -327,7 +334,7 @@ if __name__ == '__main__':
 
     opt = parser.parse_args()
 
-    logging.basicConfig(level=getattr(logging, opt.loglevel.upper()),
+    logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s:%(levelname)s: %(message)s')
 
     logger.info(
