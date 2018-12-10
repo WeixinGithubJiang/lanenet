@@ -51,9 +51,9 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
 
         images, bin_labels, ins_labels, n_lanes = data
 
-        images = Variable(images, volatile=False)
-        bin_labels = Variable(bin_labels, volatile=False)
-        ins_labels = Variable(ins_labels, volatile=False)
+        images = Variable(images)
+        bin_labels = Variable(bin_labels)
+        ins_labels = Variable(ins_labels)
 
         if torch.cuda.is_available():
             images = images.cuda()
@@ -103,33 +103,35 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
     model.eval()
 
     pbar = tqdm(loader)
-    for data in pbar:
-        images, bin_labels, ins_labels, n_lanes = data
 
-        images = Variable(images, volatile=False)
-        bin_labels = Variable(bin_labels, volatile=False)
-        ins_labels = Variable(ins_labels, volatile=False)
+    with torch.no_grad():
+        for data in pbar:
+            images, bin_labels, ins_labels, n_lanes = data
 
-        if torch.cuda.is_available():
-            images = images.cuda()
-            bin_labels = bin_labels.cuda()
-            ins_labels = ins_labels.cuda()
-            n_lanes = n_lanes.cuda()
+            images = Variable(images)
+            bin_labels = Variable(bin_labels)
+            ins_labels = Variable(ins_labels)
 
-        bin_preds, ins_preds = model(images)
+            if torch.cuda.is_available():
+                images = images.cuda()
+                bin_labels = bin_labels.cuda()
+                ins_labels = ins_labels.cuda()
+                n_lanes = n_lanes.cuda()
 
-        _, bin_labels_ce = bin_labels.max(1)
-        ce_loss = criterion_ce(
-            bin_preds.permute(0, 2, 3, 1).contiguous().view(-1, 2),
-            bin_labels_ce.view(-1))
+            bin_preds, ins_preds = model(images)
 
-        disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
-        loss = ce_loss + disc_loss
+            _, bin_labels_ce = bin_labels.max(1)
+            ce_loss = criterion_ce(
+                bin_preds.permute(0, 2, 3, 1).contiguous().view(-1, 2),
+                bin_labels_ce.view(-1))
 
-        val_loss.update(loss.item())
+            disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
+            loss = ce_loss + disc_loss
 
-        pbar.set_description(
-            '>>> Validating loss={:.6f}'.format(loss.item()))
+            val_loss.update(loss.item())
+
+            pbar.set_description(
+                '>>> Validating loss={:.6f}'.format(loss.item()))
 
     return val_loss
 
