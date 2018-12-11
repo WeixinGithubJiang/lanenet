@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import argparse
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -13,13 +14,12 @@ from tqdm import tqdm
 
 from torch.nn.parallel.scatter_gather import gather
 from dataloader import get_data_loader
-from model import LaneNet
-from utils import AverageMeter, adjust_learning_rate
-from loss import DiscriminativeLoss
+from models.model import LaneNet
+from models.loss import DiscriminativeLoss
+from utils.utils import AverageMeter, adjust_learning_rate
+from utils.metrics import batch_pix_accuracy, batch_intersection_union
 
-#BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-#sys.path.append(os.path.join(BASE_DIR, '../PyTorch-Encoding'))
-from parallel import DataParallelModel, DataParallelCriterion
+from parallel import DataParallelModel
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,6 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
 
     end = time.time()
     pbar = tqdm(loader)
-
     for data in pbar:
         # measure data loading time
         data_time.update(time.time() - end)
@@ -108,6 +107,7 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
     val_loss = AverageMeter()
     model.eval()
 
+    total_inter, total_union, total_correct, total_label = 0, 0, 0, 0
     pbar = tqdm(loader)
 
     with torch.no_grad():
@@ -137,8 +137,19 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
 
             val_loss.update(loss.item())
 
+            correct, labeled = batch_pix_accuracy(bin_preds.data, bin_labels[:,1,:,:])
+            inter, union = batch_intersection_union(bin_preds.data, bin_labels[:,1,:,:], 2)
+            total_correct += correct
+            total_label += labeled
+            total_inter += inter
+            total_union += union
+            pixAcc = 1.0 * total_correct / (np.spacing(1) + total_label)
+            IoU = 1.0 * total_inter / (np.spacing(1) + total_union)
+            mIoU = IoU.mean()
+
             pbar.set_description(
-                '>>> Validating loss={:.6f}'.format(loss.item()))
+                '>>> Validating loss={:.6f}, pixAcc={:.6f}, mIoU={:.6f}'.format(
+                    loss.item(), pixAcc, mIoU))
 
     return val_loss
 

@@ -6,7 +6,7 @@ import numpy as np
 import json
 import glob
 import cv2
-from utils import get_binary_labels, get_instance_labels
+from utils.utils import get_binary_labels, get_instance_labels
 import logging
 logger = logging.getLogger(__name__)
 
