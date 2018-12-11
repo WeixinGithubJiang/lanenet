@@ -11,10 +11,15 @@ import logging
 from datetime import datetime
 from tqdm import tqdm
 
+from torch.nn.parallel.scatter_gather import gather
 from dataloader import get_data_loader
 from model import LaneNet
 from utils import AverageMeter, adjust_learning_rate
 from loss import DiscriminativeLoss
+
+#BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+#sys.path.append(os.path.join(BASE_DIR, '../PyTorch-Encoding'))
+from parallel import DataParallelModel, DataParallelCriterion
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +66,8 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
             ins_labels = ins_labels.cuda()
             n_lanes = n_lanes.cuda()
 
-        bin_preds, ins_preds = model(images)
+        #bin_preds, ins_preds = model(images)
+        bin_preds, ins_preds = gather(model(images), 0, dim=0)
 
         _, bin_labels_ce = bin_labels.max(1)
         ce_loss = criterion_ce(
@@ -118,7 +124,8 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
                 ins_labels = ins_labels.cuda()
                 n_lanes = n_lanes.cuda()
 
-            bin_preds, ins_preds = model(images)
+            # bin_preds, ins_preds = model(images)
+            bin_preds, ins_preds = gather(model(images), 0, dim=0)
 
             _, bin_labels_ce = bin_labels.max(1)
             ce_loss = criterion_ce(
@@ -171,9 +178,13 @@ def main(opt):
     optimizer = optim.Adam(model.parameters(), lr=opt.learning_rate)
 
     if torch.cuda.is_available():
-        model.cuda()
+        #model.cuda()
         criterion_disc.cuda()
         criterion_ce.cuda()
+        model = DataParallelModel(model).cuda()
+        #criterion_disc = DataParallelCriterion(criterion_disc).cuda()
+        #criterion_ce = DataParallelCriterion(criterion_ce).cuda()
+
 
     logger.info("Start training...")
     best_loss = sys.maxsize

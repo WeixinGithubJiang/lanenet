@@ -44,60 +44,61 @@ def test(model, loader, postprocessor, clustering,
     if save_dir and not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    for data in pbar:
-        # Update the model
-        images, _, _, _, org_images, image_ids = data
+    with torch.no_grad():
+        for data in pbar:
+            # Update the model
+            images, org_images, image_ids = data
 
-        images = Variable(images, volatile=False)
+            images = Variable(images)
 
-        if torch.cuda.is_available():
-            images = images.cuda()
+            if torch.cuda.is_available():
+                images = images.cuda()
 
-        bin_preds, ins_preds = model(images)
+            bin_preds, ins_preds = model(images)
 
-        # convert to probabiblity output
-        bin_preds = F.softmax(bin_preds, dim=1)
-        # take the index of the max along the dim=1 dimension
-        bin_preds = bin_preds.max(1)[1]
+            # convert to probabiblity output
+            bin_preds = F.softmax(bin_preds, dim=1)
+            # take the index of the max along the dim=1 dimension
+            bin_preds = bin_preds.max(1)[1]
 
-        bs = images.shape[0]
-        for i in range(bs):
-            bin_img = bin_preds[i].data.cpu().numpy()
-            ins_img = ins_preds[i].data.cpu().numpy()
-            image_id = image_ids[i]
+            bs = images.shape[0]
+            for i in range(bs):
+                bin_img = bin_preds[i].data.cpu().numpy()
+                ins_img = ins_preds[i].data.cpu().numpy()
+                image_id = image_ids[i]
 
-            bin_img = postprocessor.process(bin_img)
+                bin_img = postprocessor.process(bin_img)
 
-            lane_embedding_feats, lane_coordinate = get_lane_area(
-                bin_img, ins_img)
-            if lane_embedding_feats.size > 0:
-                num_clusters, labels, cluster_centers = clustering.cluster(
-                    lane_embedding_feats, bandwidth=1.5)
+                lane_embedding_feats, lane_coordinate = get_lane_area(
+                    bin_img, ins_img)
+                if lane_embedding_feats.size > 0:
+                    num_clusters, labels, cluster_centers = clustering.cluster(
+                        lane_embedding_feats, bandwidth=1.5)
 
-                mask_img = get_lane_mask(num_clusters, labels, bin_img,
-                                        lane_coordinate)
+                    mask_img = get_lane_mask(num_clusters, labels, bin_img,
+                                            lane_coordinate)
 
-                mask_img = mask_img[:, :, (2, 1, 0)]
-                src_img = org_images[i]
-                overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
-            else:
-                overlay_img = org_images[i]
+                    mask_img = mask_img[:, :, (2, 1, 0)]
+                    src_img = org_images[i].data.cpu().numpy()
+                    overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
+                else:
+                    overlay_img = org_images[i]
 
-            if show_demo:
-                plt.ion()
-                plt.figure('result')
-                plt.imshow(overlay_img)
-                plt.show()
-                plt.pause(0.01)
+                if show_demo:
+                    plt.ion()
+                    plt.figure('result')
+                    plt.imshow(overlay_img)
+                    plt.show()
+                    plt.pause(0.01)
 
-            if save_dir:
-                image_path = os.path.join(save_dir, image_id + '.' + opt.image_ext)
-                cv2.imwrite(image_path, cv2.cvtColor(overlay_img, cv2.COLOR_RGB2BGR))
+                if save_dir:
+                    image_path = os.path.join(save_dir, image_id + '.' + opt.image_ext)
+                    cv2.imwrite(image_path, cv2.cvtColor(overlay_img, cv2.COLOR_RGB2BGR))
 
-        run_time.update(time.time() - end)
-        end = time.time()
-        fps = bs/run_time.avg
-        pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
+            run_time.update(time.time() - end)
+            end = time.time()
+            fps = bs/run_time.avg
+            pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
 
 
 def tu_test(model, loader, postprocessor, clustering):
@@ -209,8 +210,8 @@ def main(opt):
     test_loader = get_data_loader(
         checkpoint_opt,
         split='test',
-        return_raw_image=True,
-        loader_type=opt.loader_type)
+        loader_type='dirloader',
+        return_org_image=True)
 
     logger.info('Building model...')
     model.load_state_dict(checkpoint['model'])
@@ -273,7 +274,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--loader_type',
         type=str,
-        choices=['meta', 'dir', 'tutest'],
+        choices=['meta', 'dirloader', 'tutest'],
         default='meta',
         help='data loader type, dir: from a directory; meta: from a metadata file')
     parser.add_argument(

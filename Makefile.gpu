@@ -8,14 +8,8 @@ CULANE_DATA_DIR=$(DATASET_DIR)/CULane
 
 ifeq ($(DATASET), tusimple)
 	DATA_DIR=$(TUSIMPLE_DATA_DIR)
-	THICKNESS=5
-	IMG_WIDTH=512
-	IMG_HEIGHT=256
 else ifeq ($(DATASET), culane)
 	DATA_DIR=$(CULANE_DATA_DIR)
-	THICKNESS=8
-	IMG_WIDTH=800
-	IMG_HEIGHT=288
 else
     @echo 'Unknown $(DATASET)!!!'
 endif
@@ -69,7 +63,7 @@ generate_label_images:
 		--bin_dir $(BIN_DIR) \
 		--ins_dir $(INS_DIR) \
 		--splits train val \
-		--thickness $(THICKNESS)
+		--thickness 5
 
 train: $(MODEL_FILE)
 $(MODEL_FILE): $(META_DIR)/$(DATASET).json 
@@ -78,9 +72,7 @@ $(MODEL_FILE): $(META_DIR)/$(DATASET).json
 		--batch_size $(BATCH_SIZE) \
 		--cnn_type unet \
 		--dataset $(DATASET) \
-		--width $(IMG_WIDTH) \
-		--height $(IMG_HEIGHT) \
-		--thickness $(THICKNESS)
+		--thickness 10
 
 test_tusimple: $(PRED_FILE)
 $(PRED_FILE): $(MODEL_FILE) $(TEST_FILE) 
@@ -123,41 +115,24 @@ test_dir: $(MODEL_FILE)
 
 test_0: $(MODEL_FILE) 
 	python src/test.py $^ \
-		--image_dir /datashare/users/yizhou/rosbags/top_down_view_university_back_0 \
+		--image_dir /users/yizhou/rosbags/top_down_view_university_back_0 \
 		--save_dir $(OUT_DIR)/top_down_view_university_back_0 \
-		--loader_type dirloader \
+		--loader_type dir \
 		--image_ext png \
 		--batch_size 1 
 
 test_2: $(MODEL_FILE) 
 	python src/test.py $^ \
-		--image_dir /datashare/users/yizhou/rosbags/top_down_view_university_back_2 \
+		--image_dir /users/yizhou/rosbags/top_down_view_university_back_2 \
 		--save_dir $(OUT_DIR)/top_down_view_university_back_2 \
-		--loader_type dirloader \
+		--loader_type dir \
 		--image_ext png \
 		--batch_size 1 
 
 test_4: $(MODEL_FILE) 
 	python src/test.py $^ \
-		--image_dir /datashare/users/yizhou/rosbags/top_down_view_university_back_4 \
+		--image_dir /users/yizhou/rosbags/top_down_view_university_back_4 \
 		--save_dir $(OUT_DIR)/top_down_view_university_back_4 \
-		--loader_type dirloader \
+		--loader_type dir \
 		--image_ext png \
 		--batch_size 1 
-
-test_20181107: $(MODEL_FILE) 
-	python src/test.py $^ \
-		--image_dir /datashare/datasets_ascent/cardump/output/2018-11-07-extraction-for-scalabel/sample_compress_output \
-		--save_dir $(OUT_DIR)/ascent_lane_20181107 \
-		--loader_type dirloader \
-		--image_ext jpg \
-		--batch_size 1 
-
-test_20181107_das: $(MODEL_FILE) 
-	python src/test.py $^ \
-		--image_dir /datashare/users/sang/works/dasnet/output/images/2018-11-07-extraction-for-scalabel_bdd \
-		--save_dir $(OUT_DIR)/ascent_lane_20181107_das \
-		--loader_type dirloader \
-		--image_ext png \
-		--batch_size 8 --num_workers 8 
-
