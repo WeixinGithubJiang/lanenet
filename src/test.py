@@ -12,9 +12,11 @@ import logging
 from tqdm import tqdm
 import warnings
 
+from torch.nn.parallel.scatter_gather import gather
 from model import LaneNet, PostProcessor, LaneClustering
 from dataloader import get_data_loader
-from utils import AverageMeter, get_lane_area, get_lane_mask, output_lanes
+from utils.utils import AverageMeter, get_lane_area, get_lane_mask, output_lanes
+from utils.parallel import DataParallelModel
 
 logger = logging.getLogger(__name__)
 warnings.filterwarnings('ignore')
@@ -54,7 +56,7 @@ def test(model, loader, postprocessor, clustering,
             if torch.cuda.is_available():
                 images = images.cuda()
 
-            bin_preds, ins_preds = model(images)
+            bin_preds, ins_preds = gather(model(images), 0, dim=0)
 
             # convert to probabiblity output
             bin_preds = F.softmax(bin_preds, dim=1)
@@ -82,7 +84,7 @@ def test(model, loader, postprocessor, clustering,
                     src_img = org_images[i].data.cpu().numpy()
                     overlay_img = cv2.addWeighted(src_img, 1.0, mask_img, 1.0, 0)
                 else:
-                    overlay_img = org_images[i]
+                    overlay_img = org_images[i].data.cpu().numpy()
 
                 if show_demo:
                     plt.ion()
@@ -202,6 +204,7 @@ def main(opt):
 
     # Load model location
     model = LaneNet(cnn_type=checkpoint_opt.cnn_type)
+    model = DataParallelModel(model)
 
     # Update/Overwrite some test options like batch size, location to metadata
     # file
@@ -217,7 +220,7 @@ def main(opt):
     model.load_state_dict(checkpoint['model'])
 
     if torch.cuda.is_available():
-        model.cuda()
+        model = model.cuda()
 
     postprocessor = PostProcessor()
     clustering = LaneClustering()

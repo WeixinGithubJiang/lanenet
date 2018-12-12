@@ -18,8 +18,7 @@ from models.model import LaneNet
 from models.loss import DiscriminativeLoss
 from utils.utils import AverageMeter, adjust_learning_rate
 from utils.metrics import batch_pix_accuracy, batch_intersection_union
-
-from parallel import DataParallelModel
+from utils.parallel import DataParallelModel
 
 logger = logging.getLogger(__name__)
 

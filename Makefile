@@ -23,6 +23,7 @@ endif
 OUT_DIR=/datashare/users/sang/works/lanenet/output
 META_DIR=$(OUT_DIR)/metadata
 MODEL_DIR=$(OUT_DIR)/model
+LOG_DIR=$(OUT_DIR)/logs
 
 # Variables
 TEST_FILE=$(DATA_DIR)/test_tasks_0627.json
@@ -80,7 +81,8 @@ $(MODEL_FILE): $(META_DIR)/$(DATASET).json
 		--dataset $(DATASET) \
 		--width $(IMG_WIDTH) \
 		--height $(IMG_HEIGHT) \
-		--thickness $(THICKNESS)
+		--thickness $(THICKNESS) \
+		2>&1 | tee $(LOG_DIR)/train_$(DATASET)_$*_lr0001.log
 
 test_tusimple: $(PRED_FILE)
 $(PRED_FILE): $(MODEL_FILE) $(TEST_FILE) 
