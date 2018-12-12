@@ -1,27 +1,13 @@
 import os
 import torch
-import torchvision.transforms as transforms
 import torch.utils.data as data
-import numpy as np
 import json
-import glob
 import cv2
 from utils.utils import get_binary_labels, get_instance_labels
 import logging
 logger = logging.getLogger(__name__)
 
-
-def get_image_transform(height=256, width=512):
-
-    normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                      std=[0.229, 0.224, 0.225])
-
-    t = [transforms.ToTensor(),
-         normalizer]
-
-    transform = transforms.Compose(t)
-    return transform
-
+from .base import get_image_transform
 
 class TuSimpleDataLoader(data.Dataset):
     """
@@ -105,3 +91,51 @@ class TuSimpleDataLoader(data.Dataset):
     def __len__(self):
         return len(self.image_ids)
 
+
+class TuSimpleTestDataLoader(data.Dataset):
+    """Load image and y_samples, generate x_lanes for each lane
+    this is used at test time, where the full x, y labels are not available
+    """
+    def __init__(self, opt, split='test', return_org_image=False):
+        super(TuSimpleTestDataLoader, self).__init__()
+
+        self.image_dir = opt.image_dir
+        self.thickness = opt.thickness
+        self.height = opt.height
+        self.width = opt.width
+        self.max_lanes = opt.max_lanes
+
+        self.image_transform = get_image_transform(
+            height=self.height, width=self.width)
+
+        test_lines = [l for l in open(opt.meta_file, 'rb')]
+        logger.info('Loaded %s test images', len(test_lines))
+
+        info = []
+        for l in test_lines:
+            img_info = json.loads(l)
+            info.append(img_info)
+        self.info = info
+
+    def __getitem__(self, index):
+
+        file_name = self.info[index]['raw_file']
+        file_path = os.path.join(self.image_dir, file_name)
+        image = cv2.imread(file_path)  # in BGR order
+        width_org = image.shape[1]
+        height_org = image.shape[0]
+
+        image = cv2.resize(image, (self.width, self.height))
+        # transform the image, and convert to Tensor
+        image = self.image_transform(image)
+
+        y_samples = self.info[index]['h_samples']
+
+        # by default, pytorch don't behave properly if we return list here,
+        # so convert to tensor before returning
+        y_samples = torch.Tensor(y_samples)
+
+        return image, y_samples, width_org, height_org
+
+    def __len__(self):
+        return len(self.info)

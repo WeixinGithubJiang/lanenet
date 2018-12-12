@@ -1,4 +1,4 @@
-from .tusimple import TuSimpleDataLoader
+from .tusimple import TuSimpleDataLoader, TuSimpleTestDataLoader
 from .culane import CULaneDataLoader
 from .dirloader import DirDataLoader
 
@@ -6,16 +6,17 @@ import torch.utils.data as data
 
 datasets = {
 	'tusimple': TuSimpleDataLoader,
+	'tusimpletest': TuSimpleTestDataLoader,
 	'culane': CULaneDataLoader,
 	'dirloader': DirDataLoader,
 }
 
 def get_dataset(opt, **kwargs):
-    loader_type = kwargs['loader_type'] if 'loader_type' in kwargs else None
-    if loader_type == 'dirloader':
-        key = 'dirloader'
-    else:
+    if opt.loader_type == 'dataset':
         key = opt.dataset
+    else:
+        key = opt.loader_type
+
     return datasets[key](opt, **kwargs)
 
 def get_data_loader(opt, **kwargs):

@@ -77,6 +77,7 @@ $(MODEL_FILE): $(META_DIR)/$(DATASET).json
 	python src/train.py $^ $@ \
 		--image_dir $(DATA_DIR) \
 		--batch_size $(BATCH_SIZE) \
+		--num_workers 8 \
 		--cnn_type unet \
 		--dataset $(DATASET) \
 		--width $(IMG_WIDTH) \
@@ -90,7 +91,8 @@ $(PRED_FILE): $(MODEL_FILE) $(TEST_FILE)
 		--output_file $@ \
 		--meta_file $(word 2, $^) \
 		--image_dir $(DATA_DIR) \
-		--loader_type tutest \
+		--loader_type tusimpletest \
+		--num_workers 8 \
 		--batch_size $(BATCH_SIZE)
 
 # The provided evaluation script was written in Python 2, while this project use Python 3
@@ -112,7 +114,6 @@ demo_tusimple: $(MODEL_FILE) $(META_DIR)/tusimple.json
 		--save_dir $(OUT_DIR)/demo_tusimple \
 		--loader_type meta \
 		--batch_size 1 --show_demo
-
 
 # Examples of make rules to test lane detection from an image directory
 test_dir: $(MODEL_FILE) 
@@ -154,12 +155,4 @@ test_20181107: $(MODEL_FILE)
 		--loader_type dirloader \
 		--image_ext jpg \
 		--batch_size 1 
-
-test_20181107_das: $(MODEL_FILE) 
-	python src/test.py $^ \
-		--image_dir /datashare/users/sang/works/dasnet/output/images/2018-11-07-extraction-for-scalabel_bdd \
-		--save_dir $(OUT_DIR)/ascent_lane_20181107_das \
-		--loader_type dirloader \
-		--image_ext png \
-		--batch_size 8 --num_workers 8 
 
