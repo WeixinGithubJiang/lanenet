@@ -169,7 +169,6 @@ def main(opt):
                                  split='val',
                                  return_org_image=False)
 
-
     output_dir = os.path.dirname(opt.output_file)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -177,6 +176,7 @@ def main(opt):
     logger.info('Building model...')
 
     model = LaneNet(cnn_type=opt.cnn_type)
+    model = DataParallelModel(model)
 
     criterion_disc = DiscriminativeLoss(delta_var=0.5,
                                         delta_dist=1.5,
@@ -187,14 +187,15 @@ def main(opt):
 
     optimizer = optim.Adam(model.parameters(), lr=opt.learning_rate)
 
+    if opt.start_from:
+        logger.info('Restart training from %s', opt.start_from)
+        checkpoint = torch.load(opt.start_from)
+        model.load_state_dict(checkpoint['model'])
+
     if torch.cuda.is_available():
-        #model.cuda()
         criterion_disc.cuda()
         criterion_ce.cuda()
-        model = DataParallelModel(model).cuda()
-        #criterion_disc = DataParallelCriterion(criterion_disc).cuda()
-        #criterion_ce = DataParallelCriterion(criterion_ce).cuda()
-
+        model = model.cuda()
 
     logger.info("Start training...")
     best_loss = sys.maxsize
@@ -266,6 +267,11 @@ if __name__ == '__main__':
         help='output model file (*.pth)')
 
     parser.add_argument(
+        '--start_from',
+        type=str,
+        help='model to start from file (*.pth)')
+
+    parser.add_argument(
         '--dataset',
         default='tusimple',
         choices=['tusimple', 'culane'],
@@ -301,6 +307,13 @@ if __name__ == '__main__':
         type=int,
         default=256,
         help='image height to the network')
+
+    parser.add_argument(
+        '--loader_type',
+        type=str,
+        choices=['dataset', 'dirloader', 'tusimpletest'],
+        default='dataset',
+        help='data loader type, dir: from a directory; meta: from a metadata file')
 
     parser.add_argument(
         '--thickness',

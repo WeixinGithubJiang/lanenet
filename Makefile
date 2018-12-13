@@ -72,11 +72,13 @@ generate_label_images:
 		--splits train val \
 		--thickness $(THICKNESS)
 
+START_FROM=$(MODEL_DIR)/$(DATASET)_current.pth
 train: $(MODEL_FILE)
 $(MODEL_FILE): $(META_DIR)/$(DATASET).json 
 	python src/train.py $^ $@ \
 		--image_dir $(DATA_DIR) \
 		--batch_size $(BATCH_SIZE) \
+		--start_from $(START_FROM) \
 		--num_workers 8 \
 		--cnn_type unet \
 		--dataset $(DATASET) \
