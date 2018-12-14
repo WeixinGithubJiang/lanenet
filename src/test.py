@@ -61,14 +61,15 @@ def test(model, loader, postprocessor, clustering,
             # convert to probabiblity output
             bin_preds = F.softmax(bin_preds, dim=1)
             # take the index of the max along the dim=1 dimension
-            bin_preds = bin_preds.max(1)[1]
+            # bin_preds = bin_preds.max(1)[1]
 
             bs = images.shape[0]
             for i in range(bs):
-                bin_img = bin_preds[i].data.cpu().numpy()
+                bin_pred = bin_preds[i].data.cpu().numpy()
                 ins_img = ins_preds[i].data.cpu().numpy()
                 image_id = image_ids[i]
 
+                bin_img = bin_pred.argmax(0)
                 bin_img = postprocessor.process(bin_img)
 
                 lane_embedding_feats, lane_coordinate = get_lane_area(
@@ -102,7 +103,6 @@ def test(model, loader, postprocessor, clustering,
             fps = bs/run_time.avg
             pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
 
-
 def tusimpletest(model, loader, postprocessor, clustering):
     """Test a model on image and display detected lanes
 
@@ -124,11 +124,14 @@ def tusimpletest(model, loader, postprocessor, clustering):
     pbar = tqdm(loader)
 
     x_lanes = []
+    image_files = []
     times = []
     with torch.no_grad():
         for data in pbar:
             # Update the model
-            images, y_samples, widths, heights = data
+            images, y_samples, widths, heights, filenames = data
+
+            y_samples = y_samples.numpy()
             widths = widths.numpy()
             heights = heights.numpy()
 
@@ -137,20 +140,21 @@ def tusimpletest(model, loader, postprocessor, clustering):
             if torch.cuda.is_available():
                 images = images.cuda()
 
-            bin_preds, ins_preds = model(images)
+            bin_preds, ins_preds = gather(model(images), 0, dim=0)
 
             # convert to probabiblity output
             bin_preds = F.softmax(bin_preds, dim=1)
             # take the index of the max along the dim=1 dimension
-            bin_preds = bin_preds.max(1)[1]
+            # bin_preds = bin_preds.max(1)[1]
 
             bs, height, width = images.shape[0], images.shape[2], images.shape[3]
 
             for i in range(bs):
                 end = time.time()
-                bin_img = bin_preds[i].data.cpu().numpy()
+                bin_pred = bin_preds[i].data.cpu().numpy()
                 ins_img = ins_preds[i].data.cpu().numpy()
 
+                bin_img = bin_pred.argmax(0)
                 bin_img = postprocessor.process(bin_img)
 
                 lane_embedding_feats, lane_coordinate = get_lane_area(
@@ -162,7 +166,7 @@ def tusimpletest(model, loader, postprocessor, clustering):
                 y_rate = 1.0*height/heights[i]
                 x_rate = 1.0*width/widths[i]
                 y_scaled = [y * y_rate for y in y_samples[i]]
-                x_scaled = output_lanes(num_clusters, labels, bin_img, lane_coordinate, y_scaled)
+                x_scaled = output_lanes(num_clusters, labels, bin_pred[1], lane_coordinate, y_scaled)
 
                 # project into original image size
                 x_lanes_ = [[-2 if (x < 0 or x >= width) else int(round(x/x_rate)) for x in x_lane] for x_lane in x_scaled]
@@ -174,10 +178,13 @@ def tusimpletest(model, loader, postprocessor, clustering):
                 # if it is > 1 second, it will be evaluated at 0 score
                 times.append(int(elapsed_time))
                 run_time.update(elapsed_time)
+
+            image_files.extend(filenames)
+
             fps = 1.0/run_time.avg
             pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
 
-    return x_lanes, times
+    return x_lanes, times, image_files
 
 def output_tuprediction(test_file, x_lanes, times, output_file):
     test_lines = [l for l in open(opt.meta_file, 'rb')]
@@ -197,6 +204,18 @@ def output_tuprediction(test_file, x_lanes, times, output_file):
             of.write('\n')
 
     logger.info('Wrote to %s', output_file)
+
+def output_culaneprediction(output_dir, x_lanes, y_samples, image_files):
+
+    assert(len(image_files) == len(x_lanes))
+    for lanes, filename in tqdm(zip(x_lanes, image_files)):
+       filepath = os.path.join(output_dir, filename)
+       with open(filepath, 'w') as of:
+           for lane in lanes:
+               of.write('')
+               of.write('\n')
+
+    logger.info('Done')
 
 def main(opt):
     logger.info('Loading model: %s', opt.model_file)
@@ -229,7 +248,7 @@ def main(opt):
 
     logger.info('Start testing...')
 
-    if opt.loader_type == 'tusimpletest':
+    if opt.loader_type in ['tusimpletest', 'culanetest']:
         x_lanes, times = tusimpletest(
             model,
             test_loader,
@@ -279,7 +298,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--loader_type',
         type=str,
-        choices=['dataset', 'dirloader', 'tusimpletest'],
+        choices=['dataset', 'dirloader', 'tusimpletest', 'culanetest'],
         default='dataset',
         help='data loader type, dir: from a directory; meta: from a metadata file')
     parser.add_argument(

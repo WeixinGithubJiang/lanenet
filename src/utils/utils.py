@@ -262,7 +262,8 @@ def get_lane_mask(num_clusters, labels, binary_seg_ret, lane_coordinate):
 
     return mask_image
 
-def output_lanes(num_clusters, labels, binary_seg_ret, lane_coordinate, y_samples):
+def output_lanes(num_clusters, labels, bin_pred, lane_coordinate, y_samples,
+                 method='max_prob'):
     """ Output lane predictions according to TuSimple Challenge's format
     Basically, provide x coordinate at each requested y coordinate
 
@@ -277,6 +278,8 @@ def output_lanes(num_clusters, labels, binary_seg_ret, lane_coordinate, y_sample
         lane_coordinate:
         y_samples:
 
+        method: if polyfit, fit a poly lines and use fit line to make predictions
+                if max_prob, output x value that has max prob from bin_pred
     Returns:
         x_lanes: list of x-coordinate for each lane
 
@@ -294,11 +297,23 @@ def output_lanes(num_clusters, labels, binary_seg_ret, lane_coordinate, y_sample
     for index, ci in enumerate(cluster_index):
         idx = np.where(labels == ci)
         coord = lane_coordinate[idx]
-        y = coord[:, 0]
-        x = coord[:, 1]
-        z = np.polyfit(y, x, len(y_samples))
-        predictor = np.poly1d(z)
-        x_lane = [predictor(y) for y in y_samples]
+        y_coord = coord[:, 0]
+        x_coord = coord[:, 1]
+        if method == 'polyfit':
+            z = np.polyfit(y_coord, x_coord, len(y_samples))
+            predictor = np.poly1d(z)
+            x_lane = [predictor(y) for y in y_samples]
+        elif method == 'max_prob':
+            y_samples = [int(round(y)) for y in y_samples]
+            x_lane = []
+            for y in y_samples:
+                sel_coord = coord[coord[:, 0] == y]
+                if sel_coord.size > 0:
+                    sel_coord_x = sel_coord[:, 1]
+                    prob_coord_x = bin_pred[y, sel_coord_x]
+                    max_prob_idx = prob_coord_x.argmax()
+                    max_x = sel_coord_x[max_prob_idx]
+                    x_lane.append(max_x)
         x_lanes.append(x_lane)
 
     return x_lanes

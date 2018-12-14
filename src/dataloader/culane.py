@@ -95,3 +95,36 @@ class CULaneDataLoader(data.Dataset):
     def __len__(self):
         return len(self.image_ids)
 
+
+class CULaneTestDataLoader(CULaneDataLoader):
+    """
+    Load raw images and labels
+    where labels are a binary map
+    and an instance semegtation map
+    """
+
+    def __init__(self, opt, split='train', return_org_image=False):
+        super(CULaneTestDataLoader, self).__init__(opt, split, return_org_image)
+
+    def __getitem__(self, index):
+
+        image_id = self.image_ids[index]
+        file_name = self.info[image_id]['raw_file']
+        file_path = self.image_dir + file_name
+        image = cv2.imread(file_path)  # in BGR order
+        width_org = image.shape[1]
+        height_org = image.shape[0]
+
+        image = cv2.resize(image, (self.width, self.height))
+        image = self.image_transform(image)
+
+        # y_samples values are obtained from this code
+        # https://github.com/XingangPan/SCNN/blob/master/tools/prob2lines/main.m
+        # assuming image size is alway 1640x590
+        assert height_org == 590
+        y_samples = [(590-(m-1)*20)-1 for m in range(1, 19)]
+        y_samples = torch.Tensor(y_samples)
+
+        #return image, y_samples, width_org, height_org, image_id
+        return image, y_samples, width_org, height_org, file_name
+

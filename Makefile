@@ -72,13 +72,12 @@ generate_label_images:
 		--splits train val \
 		--thickness $(THICKNESS)
 
-START_FROM=$(MODEL_DIR)/$(DATASET)_current.pth
+#START_FROM=$(MODEL_DIR)/$(DATASET)_current.pth
 train: $(MODEL_FILE)
 $(MODEL_FILE): $(META_DIR)/$(DATASET).json 
 	python src/train.py $^ $@ \
 		--image_dir $(DATA_DIR) \
 		--batch_size $(BATCH_SIZE) \
-		--start_from $(START_FROM) \
 		--num_workers 8 \
 		--cnn_type unet \
 		--dataset $(DATASET) \
@@ -94,6 +93,16 @@ $(PRED_FILE): $(MODEL_FILE) $(TEST_FILE)
 		--meta_file $(word 2, $^) \
 		--image_dir $(DATA_DIR) \
 		--loader_type tusimpletest \
+		--num_workers 8 \
+		--batch_size $(BATCH_SIZE)
+
+test_culane: $(PRED_FILE)
+$(PRED_FILE): $(MODEL_FILE) $(META_DIR)/$(DATASET).json
+	python src/test.py $< \
+		--output_file $@ \
+		--meta_file $(word 2, $^) \
+		--image_dir $(DATA_DIR) \
+		--loader_type culanetest \
 		--num_workers 8 \
 		--batch_size $(BATCH_SIZE)
 
@@ -154,6 +163,14 @@ test_20181107: $(MODEL_FILE)
 	python src/test.py $^ \
 		--image_dir /datashare/datasets_ascent/cardump/output/2018-11-07-extraction-for-scalabel/sample_compress_output \
 		--save_dir $(OUT_DIR)/ascent_lane_20181107 \
+		--loader_type dirloader \
+		--image_ext jpg \
+		--batch_size 1 
+
+test_culane_sample: $(MODEL_FILE) 
+	python src/test.py $^ \
+		--image_dir /datashare/datasets_3rd_party/CULane/driver_100_30frame/05251517_0433.MP4 \
+		--save_dir $(OUT_DIR)/culane_test_sample \
 		--loader_type dirloader \
 		--image_ext jpg \
 		--batch_size 1 

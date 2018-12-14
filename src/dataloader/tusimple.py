@@ -135,7 +135,7 @@ class TuSimpleTestDataLoader(data.Dataset):
         # so convert to tensor before returning
         y_samples = torch.Tensor(y_samples)
 
-        return image, y_samples, width_org, height_org
+        return image, y_samples, width_org, height_org, file_name
 
     def __len__(self):
         return len(self.info)
