@@ -64,8 +64,10 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
             ins_labels = ins_labels.cuda()
             n_lanes = n_lanes.cuda()
 
-        #bin_preds, ins_preds = model(images)
-        bin_preds, ins_preds = gather(model(images), 0, dim=0)
+        if torch.cuda.device_count() <= 1:
+            bin_preds, ins_preds = model(images)
+        else:
+            bin_preds, ins_preds = gather(model(images), 0, dim=0)
 
         _, bin_labels_ce = bin_labels.max(1)
         ce_loss = criterion_ce(
@@ -123,8 +125,10 @@ def test(opt, model, criterion_disc, criterion_ce, loader):
                 ins_labels = ins_labels.cuda()
                 n_lanes = n_lanes.cuda()
 
-            # bin_preds, ins_preds = model(images)
-            bin_preds, ins_preds = gather(model(images), 0, dim=0)
+            if torch.cuda.device_count() <= 1:
+                bin_preds, ins_preds = model(images)
+            else:
+                bin_preds, ins_preds = gather(model(images), 0, dim=0)
 
             _, bin_labels_ce = bin_labels.max(1)
             ce_loss = criterion_ce(

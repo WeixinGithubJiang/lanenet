@@ -263,7 +263,7 @@ def get_lane_mask(num_clusters, labels, binary_seg_ret, lane_coordinate):
     return mask_image
 
 def output_lanes(num_clusters, labels, bin_pred, lane_coordinate, y_samples,
-                 method='max_prob'):
+                 method='polyfit'):
     """ Output lane predictions according to TuSimple Challenge's format
     Basically, provide x coordinate at each requested y coordinate
 

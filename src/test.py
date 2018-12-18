@@ -56,7 +56,10 @@ def test(model, loader, postprocessor, clustering,
             if torch.cuda.is_available():
                 images = images.cuda()
 
-            bin_preds, ins_preds = gather(model(images), 0, dim=0)
+            if torch.cuda.device_count() <= 1:
+                bin_preds, ins_preds = model(images)
+            else:
+                bin_preds, ins_preds = gather(model(images), 0, dim=0)
 
             # convert to probabiblity output
             bin_preds = F.softmax(bin_preds, dim=1)
@@ -140,7 +143,10 @@ def tusimpletest(model, loader, postprocessor, clustering):
             if torch.cuda.is_available():
                 images = images.cuda()
 
-            bin_preds, ins_preds = gather(model(images), 0, dim=0)
+            if torch.cuda.device_count() <= 1:
+                bin_preds, ins_preds = model(images)
+            else:
+                bin_preds, ins_preds = gather(model(images), 0, dim=0)
 
             # convert to probabiblity output
             bin_preds = F.softmax(bin_preds, dim=1)
@@ -178,6 +184,19 @@ def tusimpletest(model, loader, postprocessor, clustering):
                 # if it is > 1 second, it will be evaluated at 0 score
                 times.append(int(elapsed_time))
                 run_time.update(elapsed_time)
+
+
+                # write output
+                output_dir = 'output/predictions'
+                output_file = output_dir +  filenames[i]
+                output_file = output_file.replace('.jpg', '.lines.txt')
+                if not os.path.exists(os.path.dirname(output_file)):
+                    os.makedirs(os.path.dirname(output_file))
+
+                with open(output_file, 'w') as of:
+                    for lane in x_lanes_:
+                        of.write('')
+                        of.write('\n')
 
             image_files.extend(filenames)
 
@@ -249,7 +268,7 @@ def main(opt):
     logger.info('Start testing...')
 
     if opt.loader_type in ['tusimpletest', 'culanetest']:
-        x_lanes, times = tusimpletest(
+        x_lanes, times, image_files = tusimpletest(
             model,
             test_loader,
             postprocessor,
