@@ -4,9 +4,11 @@ Pytorch implementation of lane detection networks. This is mainly based on the a
 
 TODO:
 - [x] Train/Test on TuSimple dataset
-- [ ] Train/Test on CULane dataset
+- [x] Train/Test on CULane dataset
 - [ ] Train/Test on BDD dataset
+- [ ] Train/Test on our dataset to see how does it work (tested, does not work)
 - [ ] Add other SoA lane detection networks, such as [SCNN](https://github.com/XingangPan/SCNN)
+- [ ] Combining Drivable detection and lane detection
 
 ## Installation
 This code has been tested on ubuntu 16.04(x64), python3.7, pytorch-0.4.1, cuda-9.0 with a GTX-1060 GPU. 
