@@ -303,7 +303,7 @@ def output_lanes(num_clusters, labels, bin_pred, lane_coordinate, y_samples,
             z = np.polyfit(y_coord, x_coord, len(y_samples))
             predictor = np.poly1d(z)
             x_lane = [predictor(y) for y in y_samples]
-        elif method == 'max_prob':
+        elif method == 'maxprob':
             y_samples = [int(round(y)) for y in y_samples]
             x_lane = []
             for y in y_samples:
@@ -314,6 +314,9 @@ def output_lanes(num_clusters, labels, bin_pred, lane_coordinate, y_samples,
                     max_prob_idx = prob_coord_x.argmax()
                     max_x = sel_coord_x[max_prob_idx]
                     x_lane.append(max_x)
+                else:
+                    x_lane.append(-2)
+
         x_lanes.append(x_lane)
 
     return x_lanes

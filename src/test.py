@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 warnings.filterwarnings('ignore')
 
 
-def test(model, loader, postprocessor, clustering,
-         show_demo=False, save_dir=None):
+def visualize(model, loader, postprocessor, clustering,
+         show_demo=False, output_dir=None):
     """Test a model on image and display detected lanes
 
     Args:
@@ -42,12 +42,12 @@ def test(model, loader, postprocessor, clustering,
 
     run_time = AverageMeter()
     end = time.time()
-    pbar = tqdm(loader)
-    if save_dir and not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    # pbar = tqdm(loader)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     with torch.no_grad():
-        for data in pbar:
+        for data in loader:
             # Update the model
             images, org_images, image_ids = data
 
@@ -97,16 +97,16 @@ def test(model, loader, postprocessor, clustering,
                     plt.show()
                     plt.pause(0.01)
 
-                if save_dir:
-                    image_path = os.path.join(save_dir, image_id + '.' + opt.image_ext)
+                if output_dir:
+                    image_path = os.path.join(output_dir, image_id + '.' + opt.image_ext)
                     cv2.imwrite(image_path, cv2.cvtColor(overlay_img, cv2.COLOR_RGB2BGR))
 
             run_time.update(time.time() - end)
             end = time.time()
             fps = bs/run_time.avg
-            pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
+            #pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
 
-def tusimpletest(model, loader, postprocessor, clustering):
+def test(model, loader, postprocessor, clustering, genline_method='maxprob'):
     """Test a model on image and display detected lanes
 
     Args:
@@ -124,19 +124,23 @@ def tusimpletest(model, loader, postprocessor, clustering):
     model.eval()
 
     run_time = AverageMeter()
-    pbar = tqdm(loader)
+    # do not using tqdm for now because of this error
+    # https://github.com/tqdm/tqdm/pull/641
+    #pbar = tqdm(loader)
 
     x_lanes = []
+    y_list = []
     image_files = []
     times = []
     with torch.no_grad():
-        for data in pbar:
+        for data in loader:
             # Update the model
             images, y_samples, widths, heights, filenames = data
 
             y_samples = y_samples.numpy()
             widths = widths.numpy()
             heights = heights.numpy()
+            y_list.extend(y_samples)
 
             images = Variable(images)
 
@@ -172,7 +176,9 @@ def tusimpletest(model, loader, postprocessor, clustering):
                 y_rate = 1.0*height/heights[i]
                 x_rate = 1.0*width/widths[i]
                 y_scaled = [y * y_rate for y in y_samples[i]]
-                x_scaled = output_lanes(num_clusters, labels, bin_pred[1], lane_coordinate, y_scaled)
+                x_scaled = output_lanes(num_clusters, labels, bin_pred[1],
+                                        lane_coordinate, y_scaled,
+                                        method=genline_method)
 
                 # project into original image size
                 x_lanes_ = [[-2 if (x < 0 or x >= width) else int(round(x/x_rate)) for x in x_lane] for x_lane in x_scaled]
@@ -185,25 +191,12 @@ def tusimpletest(model, loader, postprocessor, clustering):
                 times.append(int(elapsed_time))
                 run_time.update(elapsed_time)
 
-
-                # write output
-                output_dir = 'output/predictions'
-                output_file = output_dir +  filenames[i]
-                output_file = output_file.replace('.jpg', '.lines.txt')
-                if not os.path.exists(os.path.dirname(output_file)):
-                    os.makedirs(os.path.dirname(output_file))
-
-                with open(output_file, 'w') as of:
-                    for lane in x_lanes_:
-                        of.write('')
-                        of.write('\n')
-
             image_files.extend(filenames)
 
             fps = 1.0/run_time.avg
-            pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
+            # pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
 
-    return x_lanes, times, image_files
+    return x_lanes, y_list, times, image_files
 
 def output_tuprediction(test_file, x_lanes, times, output_file):
     test_lines = [l for l in open(opt.meta_file, 'rb')]
@@ -225,14 +218,18 @@ def output_tuprediction(test_file, x_lanes, times, output_file):
     logger.info('Wrote to %s', output_file)
 
 def output_culaneprediction(output_dir, x_lanes, y_samples, image_files):
+    for lanes, y_sample, filename in tqdm(zip(x_lanes, y_samples, image_files)):
+        output_file = output_dir + filename
+        output_file = output_file.replace('.jpg', '.lines.txt')
+        if not os.path.exists(os.path.dirname(output_file)):
+            os.makedirs(os.path.dirname(output_file))
 
-    assert(len(image_files) == len(x_lanes))
-    for lanes, filename in tqdm(zip(x_lanes, image_files)):
-       filepath = os.path.join(output_dir, filename)
-       with open(filepath, 'w') as of:
-           for lane in lanes:
-               of.write('')
-               of.write('\n')
+        with open(output_file, 'w') as of:
+            for lane in lanes:
+                for x, y in zip(lane, y_sample):
+                    if x > 0:
+                        of.write('{} {} '.format(x, y))
+                of.write('\n')
 
     logger.info('Done')
 
@@ -267,21 +264,30 @@ def main(opt):
 
     logger.info('Start testing...')
 
-    if opt.loader_type in ['tusimpletest', 'culanetest']:
-        x_lanes, times, image_files = tusimpletest(
+    if opt.loader_type == 'tusimpletest':
+        x_lanes, _, times, _ = test(
             model,
             test_loader,
             postprocessor,
-            clustering)
+            clustering,
+            genline_method=opt.genline_method)
         output_tuprediction(opt.meta_file, x_lanes, times, opt.output_file)
-    else:
-        test(
+    if opt.loader_type == 'culanetest':
+        x_lanes, y_list, _, image_files = test(
+            model,
+            test_loader,
+            postprocessor,
+            clustering,
+            genline_method=opt.genline_method)
+        output_culaneprediction(opt.output_dir, x_lanes, y_list, image_files)
+    if opt.loader_type == 'dirloader':
+        visualize(
             model,
             test_loader,
             postprocessor,
             clustering,
             show_demo=opt.show_demo,
-            save_dir=opt.save_dir)
+            output_dir=opt.output_dir)
 
 
 if __name__ == '__main__':
@@ -305,7 +311,7 @@ if __name__ == '__main__':
         type=str,
         help='path to the image dir')
     parser.add_argument(
-        '--save_dir',
+        '--output_dir',
         type=str,
         default=None,
         help='path to the save dir')
@@ -326,27 +332,21 @@ if __name__ == '__main__':
         default=2,
         help='batch size')
     parser.add_argument(
+        '--genline_method',
+        choices=['polyfit', 'maxprob'],
+        default='maxprob',
+        help='How to get the line output from the probability map')
+    parser.add_argument(
         '--num_workers', type=int, default=0,
         help='number of workers (each worker use a process to load a batch of data)')
     parser.add_argument(
         '--show_demo', default=False, action='store_true',
         help='whether to show output image or not. If not, the running time \
         (fps) will be measured.')
-    parser.add_argument(
-        '--loglevel',
-        type=str,
-        default='DEBUG',
-        choices=[
-            'DEBUG',
-            'INFO',
-            'WARNING',
-            'ERROR',
-            'CRITICAL'])
 
     opt = parser.parse_args()
 
-    logging.basicConfig(level=getattr(logging, opt.loglevel.upper()),
-                        format='%(asctime)s:%(levelname)s: %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s:%(levelname)s: %(message)s')
 
     logger.info(
         'Input arguments: %s',
