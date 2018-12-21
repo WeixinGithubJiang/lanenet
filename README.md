@@ -109,14 +109,22 @@ usage: test.py [-h] [--meta_file META_FILE] [--output_file OUTPUT_FILE]
 ```
 ## Evaluation on TuSimple's Benchmark
 - Run `eval_tusimple`. This will need the evaluation script from the [organizer](https://github.com/TuSimple/tusimple-benchmark). If you haven't clone it yet, you can do it by `git submodule update --init --recursive`. This evaluation script require Python 2 to run. You can create a seperate enviroment named `py2` for the evaluation. 
-- Results: 
-```
-[{"name":"Accuracy","value":0.9058434751,"order":"desc"},{"name":"FP","value":0.1460579919,"order":"asc"},{"name":"FN","value":0.1156841601,"order":"asc"}]
-```
-The accuracy reported in the paper is 96.4%. There are a couple of things we can do to fully reproduce this result, including:
-- Implement H-Net for the curve-fitting.  
-- Use a more advanced encoder-decoder network, not UNet as in the current implementation. 
 
+
+## Current Results:
+
+### On TuSimple Dataset 
+|Model|Accuracy|FP|FN|
+|:---:|:---:|:---:|:---:|
+|[SCNN](https://github.com/XingangPan/SCNN)|96.53%|0.0617|0.0180|
+| Ours |95.22% | 0.1026 |0.0616 |
+
+### On CULane Dataset
+
+| F1-measure@IoU | IoU=0.3                      | IoU=0.5 |
+|----------------|------------------------------|---------|
+|[SCNN](https://github.com/XingangPan/SCNN)|                              | 71.6    |
+| Ours           | 68.68 (P=65.49, R=72.19)     | 80.9    |
 
 ## Demo 
 - Run `demo_tusimple` to view the results of lane detection on TuSimple test images.
