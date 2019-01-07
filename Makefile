@@ -1,10 +1,11 @@
 
 DATASET_DIR=/datashare/datasets_3rd_party
-DATASETS=tusimple culane
+DATASETS=tusimple culane bdd
 DATASET=tusimple
 
 TUSIMPLE_DATA_DIR=$(DATASET_DIR)/tusimple-benchmark
 CULANE_DATA_DIR=$(DATASET_DIR)/CULane
+BDD_DATA_DIR=$(DATASET_DIR)/bdd/bdd100k
 
 ifeq ($(DATASET), tusimple)
 	DATA_DIR=$(TUSIMPLE_DATA_DIR)
@@ -59,6 +60,10 @@ $(META_DIR)/tusimple.json:
 $(META_DIR)/culane.json:
 	python src/metadata.py --input_dir $(CULANE_DATA_DIR) \
 		--dataset culane \
+		--output_file $@
+$(META_DIR)/bdd.json:
+	python src/metadata.py --input_dir $(BDD_DATA_DIR) \
+		--dataset bdd \
 		--output_file $@
 
 # Generate binary segmentation image & instance segmentation images from

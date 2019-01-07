@@ -1,6 +1,7 @@
 import argparse
 import os
 import json
+import numpy as np
 from sklearn.model_selection import StratifiedShuffleSplit
 from datetime import datetime
 from tqdm import tqdm
@@ -28,7 +29,6 @@ def get_imageid(s, dataset='tusimple'):
         img_id = s
     return img_id
 
-
 def to_json(lines):
     """Convert list of json to json format
 
@@ -46,6 +46,82 @@ def to_json(lines):
             imgs[img_id] = img_info
 
     return imgs
+
+def get_merged_lanes(lane_labels, angle_threshold=4):
+    """ Merge consecutive lines into 1 lane
+
+        lane_labels: list of raw lane annotations (line annotations)
+        angle_threshold: maximum angle difference threshold to be considered a same line
+    """
+
+    angles = []
+    lanes = []
+
+    for l in lane_labels:
+        vertices = l['poly2d'][0]['vertices']
+        x0 = vertices[0][0]
+        x1 = vertices[1][0]
+        y0 = vertices[0][1]
+        y1 = vertices[1][1]
+        angle = np.rad2deg(np.arctan2(y1 - y0, x1 - x0))
+        angles.append(angle)
+        lanes.append(vertices)
+
+
+    # difference between two consecutive angles in this list
+    angle_diffs = [abs(j-i) for i, j in zip(angles[:-1], angles[1:])]
+
+    merge_lanes = []
+    line_merged = False
+    # merge lanes based on angle differences
+    for i,angle_diff in enumerate(angle_diffs):
+        if line_merged:
+            line_merged = False
+            continue
+        this_lane = lanes[i]
+        if angle_diff < angle_threshold:
+            # next line will be merged
+            this_lane.extend(lanes[i+1])
+            line_merged = True
+        merge_lanes.append(this_lane)
+
+    return merge_lanes
+
+
+def generate_bdd(input_dir):
+    """ Generate metadata for TuSimple dataset
+    """
+
+    splits = ['train', 'val']
+
+    out = {}
+    for split in splits:
+        label_file = os.path.join(input_dir, 'labels_new', \
+                                  'bdd100k_labels_images_{}.json'.format(split))
+
+        logger.info('Loading label file: %s', label_file)
+        image_list = json.load(open(label_file))
+        logger.info('Generating metadata for split: %s', split)
+        split_imgs = {}
+        for img_info in tqdm(image_list):
+            img_name = img_info['name']
+            img_id = os.path.splitext(img_name)[0]
+            image_file = os.path.join(input_dir, 'images', '100k', split, img_name)
+
+            # only use parrallel lines at the moment
+            lane_labels = [l for l in img_info['labels'] \
+                            if l['category'] == 'lane' and \
+                            l['attributes']['laneDirection'] == 'parallel']
+
+            pts = get_merged_lanes(lane_labels)
+            img_info = {
+                'raw_file': image_file,
+                'pts': pts
+            }
+            split_imgs[img_id] = img_info
+        out[split] = split_imgs
+    return out
+
 
 def generate_culane(input_dir, image_ext='.jpg'):
     """ Generate metadata for TuSimple dataset
@@ -129,7 +205,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--dataset',
         default='tusimple',
-        choices=['tusimple', 'culane'],
+        choices=['tusimple', 'culane', 'bdd'],
         help='Name of dataset')
     parser.add_argument(
         '--output_file',
@@ -165,6 +241,8 @@ if __name__ == '__main__':
         out = generate_tusimple(args.input_dir, args.val_size)
     elif args.dataset == 'culane':
         out = generate_culane(args.input_dir)
+    elif args.dataset == 'bdd':
+        out = generate_bdd(args.input_dir)
     else:
         raise ValueError('Unknown dataset %s', args.dataset)
 
