@@ -123,8 +123,8 @@ usage: test.py [-h] [--meta_file META_FILE] [--output_file OUTPUT_FILE]
 
 | F1-measure@IoU | IoU=0.3                      | IoU=0.5 |
 |----------------|------------------------------|---------|
-|[SCNN](https://github.com/XingangPan/SCNN)|                              | 71.6    |
-| Ours           | 68.68 (P=65.49, R=72.19)     | 80.9    |
+|[SCNN](https://github.com/XingangPan/SCNN)|    80.6      | 71.6    |
+| Ours           | 68.68 (P=65.49, R=72.19)     | 51.99 (P=49.58, R=54.65)    |
 
 ## Demo 
 - Run `demo_tusimple` to view the results of lane detection on TuSimple test images.
