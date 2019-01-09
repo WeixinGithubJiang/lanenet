@@ -99,7 +99,7 @@ def get_instance_labels(height, width, pts, thickness=5, max_lanes=5):
             max Lanes x H x W, number of actual lanes
     """
     if len(pts) > max_lanes:
-        logger.warning('More than 5 lanes: %s', len(pts))
+        #logger.warning('More than 5 lanes: %s', len(pts))
         pts = pts[:max_lanes]
 
     ins_labels = np.zeros(shape=[0, height, width], dtype=np.uint8)

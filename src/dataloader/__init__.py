@@ -1,5 +1,6 @@
 from .tusimple import TuSimpleDataLoader, TuSimpleTestDataLoader
 from .culane import CULaneDataLoader, CULaneTestDataLoader
+from .bdd import BDDDataLoader, BDDTestDataLoader
 from .dirloader import DirDataLoader
 
 import torch.utils.data as data
@@ -8,6 +9,7 @@ datasets = {
 	'tusimple': TuSimpleDataLoader,
 	'tusimpletest': TuSimpleTestDataLoader,
 	'culane': CULaneDataLoader,
+	'bdd': BDDDataLoader,
 	'culanetest': CULaneTestDataLoader,
 	'dirloader': DirDataLoader,
 }

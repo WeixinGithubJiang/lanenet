@@ -278,7 +278,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--dataset',
         default='tusimple',
-        choices=['tusimple', 'culane'],
+        choices=['tusimple', 'culane', 'bdd'],
         help='Name of dataset')
 
     parser.add_argument(

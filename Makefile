@@ -17,6 +17,11 @@ else ifeq ($(DATASET), culane)
 	THICKNESS=8
 	IMG_WIDTH=800
 	IMG_HEIGHT=288
+else ifeq ($(DATASET), bdd)
+	DATA_DIR=$(BDD_DATA_DIR)
+	THICKNESS=8
+	IMG_WIDTH=800
+	IMG_HEIGHT=288
 else
     @echo 'Unknown $(DATASET)!!!'
 endif

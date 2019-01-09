@@ -58,12 +58,15 @@ def get_merged_lanes(lane_labels, angle_threshold=4):
     lanes = []
 
     for l in lane_labels:
+        # take the start point and end point to compute the line angle
+        # while this improve the accuracy in case of straing light
+        # this is prone to error in case of curve (use first 2 points instead)
         vertices = l['poly2d'][0]['vertices']
         x0 = vertices[0][0]
-        x1 = vertices[1][0]
+        x1 = vertices[-1][0]
         y0 = vertices[0][1]
-        y1 = vertices[1][1]
-        angle = np.rad2deg(np.arctan2(y1 - y0, x1 - x0))
+        y1 = vertices[-1][1]
+        angle = np.rad2deg(np.arctan2(abs(y1 - y0), abs(x1 - x0)))
         angles.append(angle)
         lanes.append(vertices)
 
@@ -84,6 +87,8 @@ def get_merged_lanes(lane_labels, angle_threshold=4):
             this_lane.extend(lanes[i+1])
             line_merged = True
         merge_lanes.append(this_lane)
+        if i == len(angle_diffs) - 1 and not line_merged:
+            merge_lanes.append(lanes[i+1])
 
     return merge_lanes
 
@@ -106,7 +111,7 @@ def generate_bdd(input_dir):
         for img_info in tqdm(image_list):
             img_name = img_info['name']
             img_id = os.path.splitext(img_name)[0]
-            image_file = os.path.join(input_dir, 'images', '100k', split, img_name)
+            image_file = os.path.join('images', '100k', split, img_name)
 
             # only use parrallel lines at the moment
             lane_labels = [l for l in img_info['labels'] \
