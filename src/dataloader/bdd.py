@@ -37,8 +37,8 @@ class BDDDataLoader(data.Dataset):
 
         if split in ['train', 'val']:
             num_image_before = len(info)
-            # discriminative loss works with at least 2 lanes
-            info = {k:info[k] for k in info if len(info[k]['pts']) > 1}
+            # discriminative loss works with at least 2 lanes?
+            info = {k:info[k] for k in info if len(info[k]['pts']) > 0}
             num_image_after = len(info)
             logger.warning('REMOVED %d/%d images that have no lanes!',
                            num_image_before - num_image_after,

@@ -2,6 +2,7 @@ import argparse
 import os
 import json
 import numpy as np
+import cv2
 from sklearn.model_selection import StratifiedShuffleSplit
 from datetime import datetime
 from tqdm import tqdm
@@ -47,48 +48,75 @@ def to_json(lines):
 
     return imgs
 
-def get_merged_lanes(lane_labels, angle_threshold=4):
+def iou(img1, img2, EPS = 1e-6):
+    intersection = (img1 & img2).sum()
+    union = (img1 | img2).sum()
+    iou = (intersection + EPS) / (union + EPS)
+    return iou
+
+def get_merged_lanes(lane_labels, method='iou', img_h=720, img_w=1280):
     """ Merge consecutive lines into 1 lane
 
-        lane_labels: list of raw lane annotations (line annotations)
-        angle_threshold: maximum angle difference threshold to be considered a same line
+        labels: list of raw lane annotations (line annotations)
     """
-
-    angles = []
+    # getting all lanes and sorting points by its heights
     lanes = []
-
     for l in lane_labels:
-        # take the start point and end point to compute the line angle
-        # while this improve the accuracy in case of straing light
-        # this is prone to error in case of curve (use first 2 points instead)
-        vertices = l['poly2d'][0]['vertices']
-        x0 = vertices[0][0]
-        x1 = vertices[-1][0]
-        y0 = vertices[0][1]
-        y1 = vertices[-1][1]
-        angle = np.rad2deg(np.arctan2(abs(y1 - y0), abs(x1 - x0)))
-        angles.append(angle)
-        lanes.append(vertices)
+        lane = l['poly2d'][0]['vertices']
+        lane = sorted(lane, key=lambda x: x[1])
+        lanes.append(lane)
 
+    if method == 'angle':
+        # maximum angle difference threshold to be considered a same line
+        method_threshold = 4
+        angles = []
+        for lane in lanes:
+            # take the start point and end point to compute the line angle
+            # while this improve the accuracy in case of straing light
+            # this is prone to error in case of curve (use first 2 points instead)
+            x0 = lane[0][0]
+            x1 = lane[1][0]
+            y0 = lane[0][1]
+            y1 = lane[1][1]
+            # use abs here because we only care about the angle, not the orientation
+            angle = np.rad2deg(np.arctan2(abs(y1 - y0), abs(x1 - x0)))
+            angles.append(angle)
 
-    # difference between two consecutive angles in this list
-    angle_diffs = [abs(j-i) for i, j in zip(angles[:-1], angles[1:])]
+        # difference between two consecutive angles in this list
+        diffs = [abs(j-i) for i, j in zip(angles[:-1], angles[1:])]
+
+    elif method == 'iou':
+        # maximum angle difference threshold to be considered a same line
+        method_threshold = -0.1
+
+        imgs = []
+        for lane in lanes:
+            # fill the lines so that IoU can be computed!
+            tmp_img = np.zeros(shape=[img_h, img_w], dtype=np.uint8)
+            cv2.polylines(tmp_img, np.int32([lane]), isClosed=False, color=1, thickness=20)
+            imgs.append(np.int32(tmp_img))
+
+        # IoU difference between two consecutive (masked) images
+        diffs = [-iou(imgs[i], imgs[i+1]) for i, img in enumerate(imgs[:-1])]
 
     merge_lanes = []
     line_merged = False
     # merge lanes based on angle differences
-    for i,angle_diff in enumerate(angle_diffs):
+    for i, diff in enumerate(diffs):
         if line_merged:
             line_merged = False
             continue
         this_lane = lanes[i]
-        if angle_diff < angle_threshold:
+        if diff < method_threshold:
             # next line will be merged
             this_lane.extend(lanes[i+1])
             line_merged = True
+
+        this_lane = sorted(this_lane, key=lambda x: x[1])
         merge_lanes.append(this_lane)
-        if i == len(angle_diffs) - 1 and not line_merged:
-            merge_lanes.append(lanes[i+1])
+        if i == len(diffs)-1 and not line_merged:
+            this_lane = sorted(lanes[i+1], key=lambda x: x[1])
+        merge_lanes.append(this_lane)
 
     return merge_lanes
 
