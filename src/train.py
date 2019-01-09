@@ -179,7 +179,7 @@ def main(opt):
 
     logger.info('Building model...')
 
-    model = LaneNet(cnn_type=opt.cnn_type)
+    model = LaneNet(cnn_type=opt.cnn_type, embed_dim=opt.embed_dim)
     model = DataParallelModel(model)
 
     criterion_disc = DiscriminativeLoss(delta_var=0.5,
@@ -292,6 +292,12 @@ if __name__ == '__main__':
         default='unet',
         choices=['unet'],
         help='The CNN used for image encoder (e.g. vgg19, resnet152)')
+
+    parser.add_argument(
+        '--embed_dim',
+        type=int,
+        default=4,
+        help='Size of the lane embeddings')
 
     # Optimization
     parser.add_argument(

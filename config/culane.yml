@@ -25,7 +25,7 @@ spec:
       image: docker.ascentrobotics.jp/lanenet
       command: ["/bin/bash"]
       args: ["-c", "cd /datashare/users/sang/works/lanenet; make train DATASET=culane BATCH_SIZE=32"]
-      extendedResourceRequests: ["nvidia-gpu"]
+      computeResourceRequests: ["nvidia-gpu"]
  
       resources:
         requests:
@@ -41,7 +41,7 @@ spec:
       - mountPath: /datashare
         name: datashare
          
-  extendedResources:
+  computeResources:
     - name: "nvidia-gpu"
       resources:
         limits:

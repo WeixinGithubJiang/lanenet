@@ -116,7 +116,7 @@ def get_merged_lanes(lane_labels, method='iou', img_h=720, img_w=1280):
         merge_lanes.append(this_lane)
         if i == len(diffs)-1 and not line_merged:
             this_lane = sorted(lanes[i+1], key=lambda x: x[1])
-        merge_lanes.append(this_lane)
+            merge_lanes.append(this_lane)
 
     return merge_lanes
 

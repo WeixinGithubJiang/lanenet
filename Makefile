@@ -90,6 +90,7 @@ $(MODEL_FILE): $(META_DIR)/$(DATASET).json
 		--batch_size $(BATCH_SIZE) \
 		--num_workers 8 \
 		--cnn_type unet \
+		--embed_dim 8 \
 		--dataset $(DATASET) \
 		--width $(IMG_WIDTH) \
 		--height $(IMG_HEIGHT) \

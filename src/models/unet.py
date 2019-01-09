@@ -89,7 +89,7 @@ class outconv(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self):
+    def __init__(self, embed_dim=4):
         super(UNet, self).__init__()
         self.inc = inconv(3, 64)
         self.down1 = down(64, 128)
@@ -103,7 +103,7 @@ class UNet(nn.Module):
         self.sem_out = outconv(64, 2)
 
         # embedding dimension N was set to 4 in the paper
-        self.ins_out = outconv(64, 4)
+        self.ins_out = outconv(64, embed_dim)
 
     def forward(self, x):
         x1 = self.inc(x)
