@@ -120,7 +120,10 @@ def get_instance_labels(height, width, pts, thickness=5, max_lanes=5):
         # also, if there is overlapping among lanes, only the latest lane is
         # labeled
         if ins_img.sum() != 0:
-            ins_labels[:, ins_img != 0] = 0
+            # comment this line because it will zero out previous lane data,
+            # this leads to NaN error in computing the discriminative loss
+
+            # ins_labels[:, ins_img != 0] = 0
             ins_labels = np.concatenate([ins_labels, ins_img[np.newaxis]])
             n_lanes += 1
 
@@ -253,6 +256,47 @@ def get_lane_mask(num_clusters, labels, binary_seg_ret, lane_coordinate):
         coord = np.flip(coord, axis=1)
         color = color_map[index]
         coord = np.array([coord])
+        cv2.polylines(
+            img=mask_image,
+            pts=coord,
+            isClosed=False,
+            color=color,
+            thickness=2)
+
+    return mask_image
+
+def draw_lane_mask(x_preds, y_samples, img_h, img_w):
+    """
+    Get a masking images, where each lane is colored by a different color
+
+    Args:
+        num_clusters: number of possible lanes
+        labels: lane label for each point
+        binary_seg_ret:
+        lane_coordinate
+
+    Returns:
+        a mask image
+
+    """
+
+    color_map = [(255, 0, 0),
+                 (0, 255, 0),
+                 (0, 0, 255),
+                 (125, 125, 0),
+                 (0, 125, 125),
+                 (125, 0, 125),
+                 (50, 100, 50),
+                 (100, 50, 100)]
+
+    mask_image = np.zeros(
+        shape=[img_h, img_w, 3],
+        dtype=np.uint8)
+
+    for index,xs in enumerate(x_preds):
+        coord = [[x, y] for (x, y) in zip(xs, y_samples) if x > 0 and x < img_w]
+        coord = np.array([coord])
+        color = color_map[index]
         cv2.polylines(
             img=mask_image,
             pts=coord,

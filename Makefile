@@ -9,16 +9,19 @@ BDD_DATA_DIR=$(DATASET_DIR)/bdd/bdd100k
 
 ifeq ($(DATASET), tusimple)
 	DATA_DIR=$(TUSIMPLE_DATA_DIR)
+	TEST_FILE=$(DATA_DIR)/test_tasks_0627.json
 	THICKNESS=5
 	IMG_WIDTH=512
 	IMG_HEIGHT=256
 else ifeq ($(DATASET), culane)
 	DATA_DIR=$(CULANE_DATA_DIR)
+	TEST_FILE=$(META_DIR)/$(DATASET).json
 	THICKNESS=8
 	IMG_WIDTH=800
 	IMG_HEIGHT=288
 else ifeq ($(DATASET), bdd)
 	DATA_DIR=$(BDD_DATA_DIR)
+	TEST_FILE=$(META_DIR)/$(DATASET).json
 	THICKNESS=8
 	IMG_WIDTH=800
 	IMG_HEIGHT=288
@@ -29,31 +32,21 @@ endif
 OUT_DIR=/datashare/users/sang/works/lanenet/output
 META_DIR=$(OUT_DIR)/metadata
 MODEL_DIR=$(OUT_DIR)/model
-LOG_DIR=$(OUT_DIR)/logs
+TEST_DIR=$(OUT_DIR)/test
 
 # Variables
-TEST_FILE=$(DATA_DIR)/test_tasks_0627.json
 GT_FILE=$(DATA_DIR)/test_label.json
-TEST_IMG_DIR?=/home/sang/datasets/20180914
-
-MODEL_FILE=$(MODEL_DIR)/$(DATASET).pth
-PRED_FILE=$(MODEL_FILE:.pth=_predictions.json)
 
 BATCH_SIZE?=16
+TEST_BATCH_SIZE?=16
+LEARNING_RATE?=0.0001
+CNN_TYPE?=unet
 
-# Download data , tips: type `make -j3 download` to download three parts simultenously. 
-download: $(DATA_DIR)/train_set.zip $(DATA_DIR)/test_baseline.json $(DATA_DIR)/test_set.zip $(DATA_DIR)/test_label.json
-$(DATA_DIR)/train_set.zip:
-	wget https://tusimple-benchmark-evaluation.s3.amazonaws.com/datasets/1/train_set.zip -P $(DATA_DIR) 
-$(DATA_DIR)/test_baseline.json:
-	wget https://tusimple-benchmark-evaluation.s3.amazonaws.com/datasets/1/test_baseline.json -P $(DATA_DIR) 
-$(DATA_DIR)/test_set.zip:
-	wget https://tusimple-benchmark-evaluation.s3.amazonaws.com/datasets/1/test_set.zip -P $(DATA_DIR)
-$(DATA_DIR)/test_label.json:
-	wget https://s3.us-east-2.amazonaws.com/benchmark-frontend/truth/1/test_label.json -P $(DATA_DIR)
-
-# For TuSimple dataset,
-# Merge all the annotation and create train/val splits
+EXP_NAME=$(DATASET)_$(CNN_TYPE)_b$(BATCH_SIZE)_lr$(LEARNING_RATE)
+MODEL_FILE=$(MODEL_DIR)/$(EXP_NAME).pth
+PRED_FILE=$(MODEL_FILE:.pth=_predictions.json)
+TRAIN_LOG_FILE=$(MODEL_FILE:.pth=_training.log)
+TEST_OUT_DIR=$(TEST_DIR)/$(EXP_NAME)
 
 SPLITS=train val test
 
@@ -62,10 +55,12 @@ $(META_DIR)/tusimple.json:
 	python src/metadata.py --input_dir $(TUSIMPLE_DATA_DIR) \
 		--dataset tusimple \
 		--output_file $@
+
 $(META_DIR)/culane.json:
 	python src/metadata.py --input_dir $(CULANE_DATA_DIR) \
 		--dataset culane \
 		--output_file $@
+
 $(META_DIR)/bdd.json:
 	python src/metadata.py --input_dir $(BDD_DATA_DIR) \
 		--dataset bdd \
@@ -89,33 +84,24 @@ $(MODEL_FILE): $(META_DIR)/$(DATASET).json
 		--image_dir $(DATA_DIR) \
 		--batch_size $(BATCH_SIZE) \
 		--num_workers 8 \
-		--cnn_type unet \
-		--embed_dim 8 \
+		--cnn_type $(CNN_TYPE) \
+		--embed_dim 4 \
 		--dataset $(DATASET) \
 		--width $(IMG_WIDTH) \
 		--height $(IMG_HEIGHT) \
 		--thickness $(THICKNESS) \
-		2>&1 | tee $(LOG_DIR)/train_$(DATASET)_$*_lr0001.log
+		2>&1 | tee $(TRAIN_LOG_FILE)
 
-test_tusimple: $(PRED_FILE)
+test: $(PRED_FILE)
 $(PRED_FILE): $(MODEL_FILE) $(TEST_FILE) 
 	python src/test.py $< \
 		--output_file $@ \
 		--meta_file $(word 2, $^) \
 		--image_dir $(DATA_DIR) \
-		--loader_type tusimpletest \
+		--output_dir $(TEST_OUT_DIR) \
+		--loader_type $(DATASET)test \
 		--num_workers 8 \
-		--batch_size $(BATCH_SIZE)
-
-test_culane: $(PRED_FILE)
-$(PRED_FILE): $(MODEL_FILE) $(META_DIR)/$(DATASET).json
-	python src/test.py $< \
-		--output_file $@ \
-		--meta_file $(word 2, $^) \
-		--image_dir $(DATA_DIR) \
-		--loader_type culanetest \
-		--num_workers 8 \
-		--batch_size $(BATCH_SIZE)
+		--batch_size $(TEST_BATCH_SIZE)
 
 # The provided evaluation script was written in Python 2, while this project use Python 3
 # Solution is to use an Python 2 env for the evaluation
@@ -133,55 +119,49 @@ demo_tusimple: $(MODEL_FILE) $(META_DIR)/tusimple.json
 	python src/test.py $< \
 		--meta_file $(word 2, $^) \
 		--image_dir $(DATA_DIR) \
-		--save_dir $(OUT_DIR)/demo_tusimple \
+		--output_dir $(OUT_DIR)/demo_tusimple \
 		--loader_type meta \
 		--batch_size 1 --show_demo
 
 # Examples of make rules to test lane detection from an image directory
-test_dir: $(MODEL_FILE) 
-	python src/test.py $^ \
-		--image_dir $(TEST_IMG_DIR)  \
-		--save_dir $(OUT_DIR)/test_dir \
-		--loader_type dir \
-		--image_ext png \
-		--batch_size 1 
 
-test_0: $(MODEL_FILE) 
+TEST_IMG_DIR?=/datashare/datasets_ascent/extracted/2018-12-13/13-15-33/part_70/sync/low_res_rear_cam
+test_20181213_rear: $(MODEL_FILE) 
 	python src/test.py $^ \
-		--image_dir /datashare/users/yizhou/rosbags/top_down_view_university_back_0 \
-		--save_dir $(OUT_DIR)/top_down_view_university_back_0 \
+		--image_dir $(TEST_IMG_DIR) \
+		--output_dir $(TEST_OUT_DIR)/20181213_low_res_rear_cam \
 		--loader_type dirloader \
 		--image_ext png \
 		--batch_size 1 
+	ls -t $(TEST_IMG_DIR)/*.png | xargs cat | /usr/bin/ffmpeg -framerate 25 -i - -r 25 -c:v libx264 -pix_fmt yuv420p $(TEST_OUT_DIR)/20181213_low_res_rear_cam.mp4 
 
-test_2: $(MODEL_FILE) 
+
+TEST_IMG_DIR?=/datashare/datasets_ascent/extracted/2018-12-13/13-15-33/part_70/sync/low_res_front_left_cam
+test_20181213_frontleft: $(MODEL_FILE) 
 	python src/test.py $^ \
-		--image_dir /datashare/users/yizhou/rosbags/top_down_view_university_back_2 \
-		--save_dir $(OUT_DIR)/top_down_view_university_back_2 \
+		--image_dir $(TEST_IMG_DIR) \
+		--output_dir $(TEST_OUT_DIR)/20181213_low_res_front_left_cam \
 		--loader_type dirloader \
 		--image_ext png \
 		--batch_size 1 
+	cat $(TEST_IMG_DIR)/*.png | ffmpeg -framerate 25 -i - -r 25 -pix_fmt yuv420p $(TEST_OUT_DIR)/20181213_low_res_front_left_cam.mp4 
 
-test_4: $(MODEL_FILE) 
+TEST_IMG_DIR?=/datashare/datasets_ascent/extracted/2018-12-13/13-15-33/part_70/sync/low_res_front_right_cam
+test_20181213_frontright: $(MODEL_FILE) 
 	python src/test.py $^ \
-		--image_dir /datashare/users/yizhou/rosbags/top_down_view_university_back_4 \
-		--save_dir $(OUT_DIR)/top_down_view_university_back_4 \
+		--image_dir $(TEST_IMG_DIR) \
+		--output_dir $(TEST_OUT_DIR)/20181213_low_res_front_right_cam \
 		--loader_type dirloader \
 		--image_ext png \
 		--batch_size 1 
+	cat $(TEST_IMG_DIR)/*.png | ffmpeg -framerate 25 -i - -r 25 -pix_fmt yuv420p $(TEST_OUT_DIR)/20181213_low_res_front_right_cam.mp4 
 
-test_20181107: $(MODEL_FILE) 
-	python src/test.py $^ \
-		--image_dir /datashare/datasets_ascent/cardump/output/2018-11-07-extraction-for-scalabel/sample_compress_output \
-		--save_dir $(OUT_DIR)/ascent_lane_20181107 \
-		--loader_type dirloader \
-		--image_ext jpg \
-		--batch_size 1 
-
+# /datashare/datasets_ascent/cardump/output/2018-11-07-extraction-for-scalabel/sample_compress_output \
+	
 test_culane_sample: $(MODEL_FILE) 
 	python src/test.py $^ \
 		--image_dir /datashare/datasets_3rd_party/CULane/driver_100_30frame/05251517_0433.MP4 \
-		--save_dir $(OUT_DIR)/culane_test_sample \
+		--output_dir $(OUT_DIR)/culane_test_sample \
 		--loader_type dirloader \
 		--image_ext jpg \
 		--batch_size 1 

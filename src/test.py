@@ -13,9 +13,9 @@ from tqdm import tqdm
 import warnings
 
 from torch.nn.parallel.scatter_gather import gather
-from model import LaneNet, PostProcessor, LaneClustering
+from models.model import LaneNet, PostProcessor, LaneClustering
 from dataloader import get_data_loader
-from utils.utils import AverageMeter, get_lane_area, get_lane_mask, output_lanes
+from utils.utils import AverageMeter, get_lane_area, get_lane_mask, draw_lane_mask, output_lanes
 from utils.parallel import DataParallelModel
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ warnings.filterwarnings('ignore')
 
 
 def visualize(model, loader, postprocessor, clustering,
-         show_demo=False, output_dir=None):
+         show_demo=False, output_dir=None, genline_method=None):
     """Test a model on image and display detected lanes
 
     Args:
@@ -33,6 +33,8 @@ def visualize(model, loader, postprocessor, clustering,
             between nearby pixels using a closing operator
         clustering (LaneClustering): cluster lane embeddings to assign pixel
             to lane instance
+        genline_method (default is None), else generate lanes from heat maps, using
+        this method. supported methods include 'maxprob' and 'polyfit'
 
     Returns:
         None
@@ -47,7 +49,8 @@ def visualize(model, loader, postprocessor, clustering,
         os.makedirs(output_dir)
 
     with torch.no_grad():
-        for data in loader:
+        for j, data in enumerate(loader):
+
             # Update the model
             images, org_images, image_ids = data
 
@@ -66,22 +69,28 @@ def visualize(model, loader, postprocessor, clustering,
             # take the index of the max along the dim=1 dimension
             # bin_preds = bin_preds.max(1)[1]
 
-            bs = images.shape[0]
+            bs, height, width = images.shape[0], images.shape[2], images.shape[3]
+
             for i in range(bs):
                 bin_pred = bin_preds[i].data.cpu().numpy()
                 ins_img = ins_preds[i].data.cpu().numpy()
                 image_id = image_ids[i]
-
                 bin_img = bin_pred.argmax(0)
                 bin_img = postprocessor.process(bin_img)
-
                 lane_embedding_feats, lane_coordinate = get_lane_area(
                     bin_img, ins_img)
                 if lane_embedding_feats.size > 0:
                     num_clusters, labels, cluster_centers = clustering.cluster(
                         lane_embedding_feats, bandwidth=1.5)
 
-                    mask_img = get_lane_mask(num_clusters, labels, bin_img,
+                    if genline_method:
+                        y_samples = list(range(height//2, height, 10))
+                        x_preds = output_lanes(num_clusters, labels, bin_pred[1],
+                                        lane_coordinate, y_samples,
+                                        method=genline_method)
+                        mask_img = draw_lane_mask(x_preds, y_samples, height, width)
+                    else:
+                        mask_img = get_lane_mask(num_clusters, labels, bin_img,
                                             lane_coordinate)
 
                     mask_img = mask_img[:, :, (2, 1, 0)]
@@ -104,6 +113,8 @@ def visualize(model, loader, postprocessor, clustering,
             run_time.update(time.time() - end)
             end = time.time()
             fps = bs/run_time.avg
+            if j % 20 == 0:
+                logger.info('{}/{} batches processed, fps={:.3f}'.format(j, len(loader), fps))
             #pbar.set_description('Average run time: {fps:.3f} fps'.format(fps=fps))
 
 def test(model, loader, postprocessor, clustering, genline_method='maxprob'):
@@ -133,7 +144,10 @@ def test(model, loader, postprocessor, clustering, genline_method='maxprob'):
     image_files = []
     times = []
     with torch.no_grad():
-        for data in loader:
+        for j, data in enumerate(loader):
+            if j % 20 == 0:
+                logger.info('{}/{} batches processed'.format(j, len(loader)))
+
             # Update the model
             images, y_samples, widths, heights, filenames = data
 
@@ -287,7 +301,8 @@ def main(opt):
             postprocessor,
             clustering,
             show_demo=opt.show_demo,
-            output_dir=opt.output_dir)
+            output_dir=opt.output_dir,
+            genline_method=opt.genline_method)
 
 
 if __name__ == '__main__':
