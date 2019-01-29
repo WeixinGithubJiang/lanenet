@@ -124,6 +124,14 @@ demo_tusimple: $(MODEL_FILE) $(META_DIR)/tusimple.json
 		--batch_size 1 --show_demo
 
 # Examples of make rules to test lane detection from an image directory
+TEST_IMG_DIR?=/datashare/datasets_3rd_party/bdd/bdd100k/images/100k/test
+test_bdd: $(MODEL_FILE) 
+	python src/test.py $^ \
+		--image_dir $(TEST_IMG_DIR) \
+		--output_dir $(TEST_OUT_DIR)/bdd_test \
+		--loader_type dirloader \
+		--image_ext jpg \
+		--batch_size 1 
 
 TEST_IMG_DIR?=/datashare/datasets_ascent/extracted/2018-12-13/13-15-33/part_70/sync/low_res_rear_cam
 test_20181213_rear: $(MODEL_FILE) 
