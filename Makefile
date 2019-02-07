@@ -174,3 +174,8 @@ test_culane_sample: $(MODEL_FILE)
 		--image_ext jpg \
 		--batch_size 1 
 
+test_video:
+	python src/test_video.py $(MODEL_FILE) \
+		--input_file /home/sang/clones/Advanced-Lane-Lines/harder_challenge_video.mp4 \
+		--output_file harder_challenge_video_lanenet.mp4 \
+		--genline_method maxprob
