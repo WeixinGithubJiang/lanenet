@@ -4,7 +4,7 @@ from sklearn.cluster import MeanShift
 import torch.nn as nn
 import logging
 
-from .unet import UNet
+from .unet import UNet, UNetSCNN
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,8 @@ class LaneNet(nn.Module):
 
         if cnn_type == 'unet':
             model = UNet(embed_dim=embed_dim)
+        if cnn_type == 'unetscnn':
+            model = UNetSCNN(embed_dim=embed_dim)
         else:
             raise ValueError('cnn_type unknown: %s', cnn_type)
 
