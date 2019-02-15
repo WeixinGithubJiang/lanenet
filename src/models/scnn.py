@@ -62,21 +62,21 @@ class SCNN(nn.Module):
         # top to down
         # N x C x H x W --> N x H x W x C
         out = x.permute(0, 2, 3, 1)
-        out = self.__scnn(out, self.conv_down)
+        out = self.relu(self.__scnn(out, self.conv_down))
 
         # down to top
         # N x H x W x C --> N x H x W x C
         out = torch.flip(out, [1])
-        out = self.__scnn(out, self.conv_up)
+        out = self.relu(self.__scnn(out, self.conv_up))
 
         # left to right
         # N x H x W x C --> N x W x H x C
         out = out.permute(0, 2, 1, 3)
-        out = self.__scnn(out, self.conv_left)
+        out = self.relu(self.__scnn(out, self.conv_left))
 
         # right to left
         out = torch.flip(out, [1])
-        out = self.__scnn(out, self.conv_right)
+        out = self.relu(self.__scnn(out, self.conv_right))
 
         # N x W x H x C --> N x C x H x W
         out = out.permute(0, 3, 2, 1)
