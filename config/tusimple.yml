@@ -22,7 +22,7 @@ spec:
  
   containers:
     - name: lanenet
-      image: docker.ascentrobotics.jp/lanenet
+      image: docker.artifactory.ascentrobotics.jp/lanenet
       command: ["/bin/bash"]
       args: ["-c", "cd /datashare/users/sang/works/lanenet; make train DATASET=tusimple BATCH_SIZE=32"]
       computeResourceRequests: ["nvidia-gpu"]

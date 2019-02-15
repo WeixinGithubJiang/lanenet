@@ -22,7 +22,7 @@ spec:
  
   containers:
     - name: lanenet
-      image: docker.ascentrobotics.jp/lanenet
+      image: docker.artifactory.ascentrobotics.jp/lanenet
       command: ["/bin/bash"]
       args: ["-c", ""]
       computeResourceRequests: ["nvidia-gpu"]
