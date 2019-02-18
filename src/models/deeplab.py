@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
-from aspp import build_aspp
-from decoder import build_decoder
-from backbone import build_backbone
+from src.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
+from src.models.aspp import build_aspp
+from src.models.decoder import build_decoder
+from src.models.backbone import build_backbone
 
 class DeepLab(nn.Module):
-    def __init__(self, backbone='resnet', output_stride=16, num_classes=21,
+    def __init__(self, embed_dim=4, backbone='drn', output_stride=16, num_classes=2,
                  sync_bn=True, freeze_bn=False):
         super(DeepLab, self).__init__()
         if backbone == 'drn':
@@ -20,7 +20,7 @@ class DeepLab(nn.Module):
 
         self.backbone = build_backbone(backbone, output_stride, BatchNorm)
         self.aspp = build_aspp(backbone, output_stride, BatchNorm)
-        self.decoder = build_decoder(num_classes, backbone, BatchNorm)
+        self.decoder = build_decoder(embed_dim, num_classes, backbone, BatchNorm)
 
         if freeze_bn:
             self.freeze_bn()
@@ -28,10 +28,10 @@ class DeepLab(nn.Module):
     def forward(self, input):
         x, low_level_feat = self.backbone(input)
         x = self.aspp(x)
-        x = self.decoder(x, low_level_feat)
-        x = F.interpolate(x, size=input.size()[2:], mode='bilinear', align_corners=True)
-
-        return x
+        sem_out, ins_out = self.decoder(x, low_level_feat)
+        sem_out = F.interpolate(sem_out, size=input.size()[2:], mode='bilinear', align_corners=True)
+        ins_out = F.interpolate(ins_out, size=input.size()[2:], mode='bilinear', align_corners=True)
+        return sem_out, ins_out
 
     def freeze_bn(self):
         for m in self.modules():

@@ -4,8 +4,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
 
+class outconv(nn.Module):
+    def __init__(self, in_ch, out_ch, BatchNorm):
+        super(outconv, self).__init__()
+        # self.conv = nn.Conv2d(in_ch, out_ch, 1)
+        self.conv = nn.Sequential(nn.Conv2d(in_ch, 256, kernel_size=3, stride=1, padding=1, bias=False),
+                                       BatchNorm(256),
+                                       nn.ReLU(),
+                                       nn.Dropout(0.5),
+                                       nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+                                       BatchNorm(256),
+                                       nn.ReLU(),
+                                       nn.Dropout(0.1),
+                                       nn.Conv2d(256, out_ch, kernel_size=1, stride=1))
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x
+
 class Decoder(nn.Module):
-    def __init__(self, num_classes, backbone, BatchNorm):
+    def __init__(self, embed_dim=4, num_classes=2, backbone='drn',
+                 BatchNorm=SynchronizedBatchNorm2d):
         super(Decoder, self).__init__()
         if backbone == 'resnet' or backbone == 'drn':
             low_level_inplanes = 256
@@ -19,15 +38,8 @@ class Decoder(nn.Module):
         self.conv1 = nn.Conv2d(low_level_inplanes, 48, 1, bias=False)
         self.bn1 = BatchNorm(48)
         self.relu = nn.ReLU()
-        self.last_conv = nn.Sequential(nn.Conv2d(304, 256, kernel_size=3, stride=1, padding=1, bias=False),
-                                       BatchNorm(256),
-                                       nn.ReLU(),
-                                       nn.Dropout(0.5),
-                                       nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-                                       BatchNorm(256),
-                                       nn.ReLU(),
-                                       nn.Dropout(0.1),
-                                       nn.Conv2d(256, num_classes, kernel_size=1, stride=1))
+        self.sem_out = outconv(304, num_classes, BatchNorm)
+        self.ins_out = outconv(304, embed_dim, BatchNorm)
         self._init_weight()
 
 
@@ -37,10 +49,12 @@ class Decoder(nn.Module):
         low_level_feat = self.relu(low_level_feat)
 
         x = F.interpolate(x, size=low_level_feat.size()[2:], mode='bilinear', align_corners=True)
+        # dim1 = 256 + 48 = 304
         x = torch.cat((x, low_level_feat), dim=1)
-        x = self.last_conv(x)
+        sem = self.sem_out(x)
+        ins = self.ins_out(x)
+        return sem, ins
 
-        return x
 
     def _init_weight(self):
         for m in self.modules():
@@ -53,5 +67,5 @@ class Decoder(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-def build_decoder(num_classes, backbone, BatchNorm):
-    return Decoder(num_classes, backbone, BatchNorm)
+def build_decoder(embed_dim, num_classes, backbone, BatchNorm):
+    return Decoder(embed_dim, num_classes, backbone, BatchNorm)

@@ -290,8 +290,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--cnn_type',
         default='unet',
-        choices=['unet', 'unetscnn'],
-        help='The CNN used for image encoder (e.g. vgg19, resnet152)')
+        choices=['unet', 'unetscnn', 'deeplab'],
+        help='The CNN used for image encoder')
 
     parser.add_argument(
         '--embed_dim',

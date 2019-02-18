@@ -5,7 +5,7 @@ import torch.nn as nn
 import logging
 
 from .unet import UNet, UNetSCNN
-
+from .deeplab import DeepLab
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +29,8 @@ class LaneNet(nn.Module):
             model = UNet(embed_dim=embed_dim)
         elif cnn_type == 'unetscnn':
             model = UNetSCNN(embed_dim=embed_dim)
+        elif cnn_type == 'deeplab':
+            model = DeepLab(embed_dim=embed_dim)
         else:
             raise ValueError('cnn_type unknown: %s', cnn_type)
 
