@@ -5,9 +5,9 @@ Pytorch implementation of lane detection networks. This is mainly based on the a
 TODO:
 - [x] Train/Test on TuSimple dataset
 - [x] Train/Test on CULane dataset
-- [ ] Train/Test on BDD dataset
+- [x] Train/Test on BDD dataset
 - [ ] Train/Test on our dataset to see how does it work (tested, does not work)
-- [ ] Add other SoA lane detection networks, such as [SCNN](https://github.com/XingangPan/SCNN)
+- [x] Add other SoA lane detection networks, such as [SCNN](https://github.com/XingangPan/SCNN) -- implemented the SCNN module, but not able to get good results yet. Also supported Deeplab.  
 - [ ] Combining Drivable detection and lane detection
 
 ## Installation
@@ -117,7 +117,8 @@ usage: test.py [-h] [--meta_file META_FILE] [--output_file OUTPUT_FILE]
 |Model|Accuracy|FP|FN|
 |:---:|:---:|:---:|:---:|
 |[SCNN](https://github.com/XingangPan/SCNN)|96.53%|0.0617|0.0180|
-| Ours |95.22% | 0.1026 |0.0616 |
+| LaneNet (UNet) |95.22% | 0.1026 |0.0616 |
+| LaneNet (DeeplabV3+) |95.28% | 0.0590 |0.0583 |
 
 ### On CULane Dataset
 
