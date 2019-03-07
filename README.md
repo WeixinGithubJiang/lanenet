@@ -9,6 +9,7 @@ TODO:
 - [ ] Train/Test on our dataset to see how does it work (tested, does not work)
 - [x] Add other SoA lane detection networks, such as [SCNN](https://github.com/XingangPan/SCNN) -- implemented the SCNN module, but not able to get good results yet. Also supported Deeplab.  
 - [ ] Combining Drivable detection and lane detection
+- [ ] Use H-Net for curve fitting 
 
 ## Installation
 This code has been tested on ubuntu 16.04(x64), python3.7, pytorch-0.4.1, cuda-9.0 with a GTX-1060 GPU. 
@@ -125,7 +126,8 @@ usage: test.py [-h] [--meta_file META_FILE] [--output_file OUTPUT_FILE]
 | F1-measure@IoU | IoU=0.3                      | IoU=0.5 |
 |----------------|------------------------------|---------|
 |[SCNN](https://github.com/XingangPan/SCNN)|    80.6      | 71.6    |
-| Ours           | 68.68 (P=65.49, R=72.19)     | 51.99 (P=49.58, R=54.65)    |
+| LaneNet (U-Net)  | 68.68 (P=65.49, R=72.19)     | 51.99 (P=49.58, R=54.65)    |
+| LaneNet (DeepLabV3)| 78.44 (P=75.03, R=82.17)     | 68.79 (P=65.80, R=72.07)    |
 
 ## Demo 
 - Run `demo_tusimple` to view the results of lane detection on TuSimple test images.
