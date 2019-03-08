@@ -16,7 +16,7 @@ ifeq ($(DATASET), tusimple)
 else ifeq ($(DATASET), culane)
 	DATA_DIR=$(CULANE_DATA_DIR)
 	TEST_FILE=$(META_DIR)/$(DATASET).json
-	THICKNESS=8
+	THICKNESS=12
 	IMG_WIDTH=800
 	IMG_HEIGHT=288
 else ifeq ($(DATASET), bdd)
@@ -178,4 +178,10 @@ test_video:
 	python src/test_video.py $(MODEL_FILE) \
 		--input_file /home/sang/clones/Advanced-Lane-Lines/harder_challenge_video.mp4 \
 		--output_file harder_challenge_video_lanenet.mp4 \
+		--genline_method maxprob
+
+test_ascent_video:
+	python src/test_video.py $(MODEL_FILE) \
+		--input_file /datashare/users/sang/datasets/video.mp4 \
+		--output_file video.mp4 \
 		--genline_method maxprob

@@ -68,8 +68,26 @@ class HNet(nn.Module):
 
         return x
 
+def compute_hnet_loss(pts, coefs, order=3):
+    """
+    Compute hnet loss for set of line points
 
-def hnet_loss(pts, coefs, order=3):
+    Note:
+        not finished yet.  Need to be careful checking how
+        loss function is computed, esp. at padding lanes,
+        and padding points
+
+        Note:
+            not finished yet.  Need to be careful checking how
+            loss function is computed, esp. at padding lanes,
+            and padding points
+    """
+    loss = 0
+    for line_pts in pts:
+        loss += __compute_hnet_loss(line_pts, coefs, order=order)
+    return loss/len(pts)
+
+def __compute_hnet_loss(pts, coefs, order=3):
     """
         pts (Nx2xM): set of points in the original plane
         coefs (Nx6): contains cooeficents of the H matrix
@@ -78,14 +96,14 @@ def hnet_loss(pts, coefs, order=3):
     """
     # adding 1to the 3rd dim of each point
     # import pdb; pdb.set_trace()
-    pts = torch.cat((pts, torch.ones(pts.size(0), 1, pts.size(2))), 1)
+    pts = torch.cat((pts, torch.ones(pts.size(0), 1, pts.size(2)).type_as(coefs)), 1)
 
     # convert 6 cooeficents into H, which is a 3x3 matrix
-    one = torch.ones(coefs.size(0), 1)
+    one = torch.ones(coefs.size(0), 1).type_as(coefs)
     x = torch.cat((coefs, one), 1)
 
-    index_tensor = torch.tensor([0,1,2,4,5,7,8]).view(1, -1).repeat(coefs.size(0), 1)
-    H = torch.zeros(coefs.size(0), 9).scatter_(1, index_tensor, x).reshape(-1, 3, 3)
+    index_tensor = torch.tensor([0,1,2,4,5,7,8]).view(1, -1).repeat(coefs.size(0), 1).type_as(coefs).long()
+    H = torch.zeros(coefs.size(0), 9).type_as(coefs).scatter_(1, index_tensor, x).reshape(-1, 3, 3)
 
     # Transform all points from orignal plan to the mapped plane using H
     pts_transformed = torch.matmul(H, pts)
@@ -98,9 +116,9 @@ def hnet_loss(pts, coefs, order=3):
 
     #Y = torch.stack((Y_p*Y_p, Y_p, torch.ones(pts.size(1)))).t()
     if order == 2:
-        Y = torch.stack((Y_p*Y_p, Y_p, torch.ones(pts.size(0), pts.size(2))), 2) # Size: N x M x 3
+        Y = torch.stack((Y_p*Y_p, Y_p, torch.ones(pts.size(0), pts.size(2)).type_as(coefs)), 2) # Size: N x M x 3
     elif order == 3:
-        Y = torch.stack((Y_p*Y_p*Y_p, Y_p*Y_p, Y_p, torch.ones(pts.size(0), pts.size(2))), 2) # Size: N x M x 3
+        Y = torch.stack((Y_p*Y_p*Y_p, Y_p*Y_p, Y_p, torch.ones(pts.size(0), pts.size(2)).type_as(coefs)), 2) # Size: N x M x 3
     else:
         raise ValueError('Unknown order', order)
 
@@ -109,7 +127,7 @@ def hnet_loss(pts, coefs, order=3):
     # using the learned model to predict the x values in the projected plane
     X_pred = torch.matmul(Y, W) # Size: N x M x 1
     # concate with Y and ones vector to form a tensor size: N x M x 3
-    pts_pred = torch.cat((X_pred, Y_p.unsqueeze(2), torch.ones(pts.size(0), pts.size(2), 1)), 2)
+    pts_pred = torch.cat((X_pred, Y_p.unsqueeze(2), torch.ones(pts.size(0), pts.size(2), 1).type_as(coefs)), 2)
     # project it back to the original plane
     pts_back = torch.matmul(torch.inverse(H), pts_pred.transpose(1,2))
     # Scale output so that the 3rd is 1

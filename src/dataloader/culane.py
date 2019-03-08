@@ -23,6 +23,7 @@ class CULaneDataLoader(data.Dataset):
         self.height = opt.height
         self.width = opt.width
         self.max_lanes = opt.max_lanes
+        self.max_points = 40
         self.return_org_image = return_org_image
 
         self.image_transform = get_image_transform(
@@ -82,15 +83,20 @@ class CULaneDataLoader(data.Dataset):
         image_t = self.image_transform(image)
         bin_labels = torch.Tensor(bin_labels)
         ins_labels = torch.Tensor(ins_labels)
+        new_pts = torch.zeros(self.max_lanes, self.max_points, 2)
+        for i, ps in enumerate(pts):
+            for j,p in enumerate(ps):
+                if p[0] > 0 and p[1] > 0:
+                    new_pts[i, j] = torch.Tensor(p)
 
         if self.return_org_image:
             # original image is converted to RGB to be displayed
             # not a good practice here, maybe it is better to write the
             # unnormalization transform
             image_raw = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            return image_t, bin_labels, ins_labels, n_lanes, image_raw, image_id
+            return image_t, bin_labels, ins_labels, n_lanes, new_pts, image_raw, image_id
         else:
-            return image_t, bin_labels, ins_labels, n_lanes
+            return image_t, bin_labels, ins_labels, n_lanes, new_pts
 
     def __len__(self):
         return len(self.image_ids)

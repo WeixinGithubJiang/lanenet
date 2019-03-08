@@ -19,6 +19,7 @@ from models.loss import DiscriminativeLoss
 from utils.utils import AverageMeter, adjust_learning_rate
 from utils.metrics import batch_pix_accuracy, batch_intersection_union
 from utils.parallel import DataParallelModel
+from models.hnet import compute_hnet_loss
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
         # measure data loading time
         data_time.update(time.time() - end)
 
-        images, bin_labels, ins_labels, n_lanes = data
+        images, bin_labels, ins_labels, n_lanes, pts  = data
 
         images = Variable(images)
         bin_labels = Variable(bin_labels)
@@ -63,11 +64,12 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
             bin_labels = bin_labels.cuda()
             ins_labels = ins_labels.cuda()
             n_lanes = n_lanes.cuda()
+            pts = pts.cuda()
 
         if torch.cuda.device_count() <= 1:
-            bin_preds, ins_preds = model(images)
+            bin_preds, ins_preds, hnet_preds = model(images)
         else:
-            bin_preds, ins_preds = gather(model(images), 0, dim=0)
+            bin_preds, ins_preds, hnet_preds = gather(model(images), 0, dim=0)
 
         _, bin_labels_ce = bin_labels.max(1)
         ce_loss = criterion_ce(
@@ -75,7 +77,9 @@ def train(opt, model, criterion_disc, criterion_ce, optimizer, loader):
             bin_labels_ce.view(-1))
 
         disc_loss = criterion_disc(ins_preds, ins_labels, n_lanes)
-        loss = ce_loss + disc_loss
+        hnet_loss = compute_hnet_loss(pts, hnet_preds)
+        loss = ce_loss + disc_loss + hnet_loss
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -371,6 +375,11 @@ if __name__ == '__main__':
         type=int,
         default=20,
         help='How often to print training info (loss, system/data time, etc)')
+
+    parser.add_argument(
+        '--use_hnet',
+        action='store_true',
+        help='Option to apply H-Net')
 
     parser.add_argument(
         '--seed',
