@@ -2,15 +2,6 @@
 
 Pytorch implementation of lane detection networks. This is mainly based on the approach proposed in [Towards End-to-End Lane Detection: an Instance Segmentation Approach](https://arxiv.org/abs/1802.05591). This model simultaneously optimizes a binary semantic segmentation network using cross entropy loss, and a (lane) instance semantic segmentation using discriminative loss.
 
-TODO:
-- [x] Train/Test on TuSimple dataset
-- [x] Train/Test on CULane dataset
-- [x] Train/Test on BDD dataset
-- [ ] Train/Test on our dataset to see how does it work (tested, does not work)
-- [x] Add other SoA lane detection networks, such as [SCNN](https://github.com/XingangPan/SCNN) -- implemented the SCNN module, but not able to get good results yet. Also supported Deeplab.  
-- [ ] Combining Drivable detection and lane detection
-- [ ] Use H-Net for curve fitting 
-
 ## Installation
 This code has been tested on ubuntu 16.04(x64), python3.7, pytorch-0.4.1, cuda-9.0 with a GTX-1060 GPU. 
 The Python environment can be imported from the `requirements.txt` file:
@@ -139,42 +130,6 @@ usage: test.py [-h] [--meta_file META_FILE] [--output_file OUTPUT_FILE]
  <br>Lane detection on TuSimple's test images (click for full video)
 </p>
 
-- Lane detection results on our test images
-
-<table style="width:100%">
-  <tr>
-    <th>
-      <p align="center">
- <a href="https://youtu.be/BTahzPYY20k"><img src="./demo/test_ascent1.gif" alt="Lane detection on Ascent's images (video 1)
-" width="100%" height="100%"></a>
- <br>Video 1
-</p>
-    </th>
-    <th>
-      <p align="center">
- <a href="https://youtu.be/WBNw1tKe4xE"><img src="./demo/test_ascent2.gif" alt="Lane detection on Ascent's images (video 2)
-" width="100%" height="100%"></a>
- <br>Video 2
-</p>
-    </th>
-    <th>
-      <p align="center">
- <a href="https://youtu.be/2TiQuKux3JU"><img src="./demo/test_ascent3.gif" alt="Lane detection on Ascent's images (video 3)
-" width="100%" height="100%"></a>
- <br>Video 3
-</p>
-    </th>
-    <th>
-      <p align="center">
- <a href="https://youtu.be/enVAMUN2qmE"><img src="./demo/test_ascent4.gif" alt="Lane detection on Ascent's images (video 4)
-" width="100%" height="100%"></a>
- <br>Video 4
-</p>
-    </th>
-  
-  </tr>
-</table>
-
 ## Notebooks
 - Check out the notebook to view groundtruth data [here](notebooks/view_groundtruth.ipynb), and to view examples of prediction results [here](notebooks/view_prediction.ipynb).
 
@@ -182,3 +137,14 @@ usage: test.py [-h] [--meta_file META_FILE] [--output_file OUTPUT_FILE]
 - [Implemention of lanenet model for real time lane detection using deep neural network model](https://github.com/MaybeShewill-CV/lanenet-lane-detection)
 - [Semantic Instance Segmentation with a Discriminative Loss Function in PyTorch](https://github.com/Wizaron/instance-segmentation-pytorch)
 - [Implementation of discriminative loss for instance segmentation by pytorch](https://github.com/nyoki-mtl/pytorch-discriminative-loss)
+
+## Tasks
+
+### Finished
+- [x] Train/Test on TuSimple dataset
+- [x] Train/Test on CULane dataset
+- [x] Train/Test on BDD dataset
+- [x] Add other SoA lane detection networks, such as [SCNN](https://github.com/XingangPan/SCNN) -- implemented the SCNN module, but not able to get good results yet. Also supported Deeplab.  
+### TODO
+- [x] Combining Drivable detection and lane detection
+- [x] Use H-Net for curve fitting 
